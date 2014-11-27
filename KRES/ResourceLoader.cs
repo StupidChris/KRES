@@ -8,42 +8,38 @@ namespace KRES
     public class ResourceLoader : MonoBehaviour
     {
         #region Propreties
-        private static ResourceLoader instance = null;
+        private static ResourceLoader _instance = null;
         /// <summary>
         /// Returns the current instance
         /// </summary>
-        public static ResourceLoader Instance
+        public static ResourceLoader instance
         {
-            get { return instance; }
+            get { return _instance; }
         }
 
-        private static bool loaded = false;
+        private static bool _loaded = false;
         /// <summary>
         /// Gets the loaded state of the resource system.
         /// </summary>
-        public static bool Loaded
+        public static bool loaded
         {
-            get { return loaded; }
+            get { return _loaded; }
         }
 
-        private double loadPercent = 0d;
+        private double _loadPercent = 0d;
         /// <summary>
         /// How much of the resources are loaded if loading
         /// </summary>
-        public double LoadPercent
+        public double loadPercent
         {
-            get { return loadPercent; }
+            get { return _loadPercent; }
         }
         #endregion
 
         #region Initialization
         private void Awake()
         {
-            if (instance == null)
-            {
-                instance = this;
-                if (MapGenerator.Generated && !Loaded) { Load(); }
-            }
+            if (_instance == null) { _instance = this; }
             else { Destroy(this); }
         }
         #endregion
@@ -56,35 +52,37 @@ namespace KRES
 
         private IEnumerator<YieldInstruction> LoadBodies()
         {
-            ConfigNode settings = ConfigNode.Load(KRESUtils.DataURL);
+            ConfigNode settings = ConfigNode.Load(KRESUtils.dataURL);
             double max = FlightGlobals.Bodies.Count;
             double current = -1d;
             System.Random random = new System.Random();
             foreach (CelestialBody planet in FlightGlobals.Bodies)
             {
                 current++;
-                loadPercent = current / max;
+                _loadPercent = current / max;
                 ResourceBody body = new ResourceBody(planet.bodyName);
                 var b = body.LoadItems(settings.GetNode("KRES"), random);
                 while (b.MoveNext()) { yield return b.Current; }
-                ResourceController.Instance.ResourceBodies.Add(body);
+                ResourceController.instance.resourceBodies.Add(body);
             }
-            settings.Save(KRESUtils.DataURL);
-            loadPercent = 1d;
-            loaded = true;
-            DebugWindow.Instance.Print("- Loaded Resources -");
+            settings.Save(KRESUtils.dataURL);
+            _loadPercent = 1;
+            _loaded = true;
+            DebugWindow.instance.Print("- Loaded Resources -");
+            Resources.UnloadUnusedAssets();
         }
         #endregion
 
         #region Unloading
         private void OnDestroy()
         {
-            if (HighLogic.LoadedScene == GameScenes.MAINMENU && loaded)
+            if (HighLogic.LoadedScene == GameScenes.MAINMENU && _loaded)
             {
-                instance = null;
-                ResourceController.Instance.UnloadResources();
-                loaded = false;
-                DebugWindow.Instance.Print("- Unloaded Resources -");
+                _instance = null;
+                ResourceController.instance.UnloadResources();
+                _loaded = false;
+                DebugWindow.instance.Print("- Unloaded Resources -");
+                Resources.UnloadUnusedAssets();
             }
         }
         #endregion

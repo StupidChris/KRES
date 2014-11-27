@@ -10,74 +10,74 @@ namespace KRES
         public class ResourceInfo
         {
             #region Propreties
-            private PartResourceDefinition resource = new PartResourceDefinition();
-            public PartResourceDefinition Resource
+            private PartResourceDefinition _resource = new PartResourceDefinition();
+            public PartResourceDefinition resource
             {
-                get { return this.resource; }
+                get { return this._resource; }
             }
 
-            private string name = string.Empty;
-            public string Name
+            private string _name = string.Empty;
+            public string name
             {
-                get { return this.name; }
+                get { return this._name; }
             }
 
-            private string realName = string.Empty;
-            public string RealName
+            private string _realName = string.Empty;
+            public string realName
             {
-                get { return this.realName; }
+                get { return this._realName; }
             }
 
-            private Color colour = KRESUtils.BlankColour;
-            public Color Colour
+            private Color _colour = KRESUtils.blankColour;
+            public Color colour
             {
-                get { return this.colour; }
+                get { return this._colour; }
             }
             #endregion
 
             #region Constructor
             public ResourceInfo(ConfigNode node)
             {
-                node.TryGetValue("name", ref this.name);
-                resource = PartResourceLibrary.Instance.GetDefinition(this.Name);
-                node.TryGetValue("realName", ref this.realName);
-                node.TryGetValue("colour", ref this.colour);
+                node.TryGetValue("name", ref this._name);
+                _resource = PartResourceLibrary.Instance.GetDefinition(this.name);
+                node.TryGetValue("realName", ref this._realName);
+                node.TryGetValue("colour", ref this._colour);
             }
             #endregion
         }
 
         #region Instance
-        private static ResourceInfoLibrary instance;
-        public static ResourceInfoLibrary Instance 
+        private static ResourceInfoLibrary _instance;
+        public static ResourceInfoLibrary instance 
         {
             get
             {
-                if (instance == null)
+                if (_instance == null)
                 {
-                    instance = new ResourceInfoLibrary();
+                    _instance = new ResourceInfoLibrary();
                 }
-                return instance;
+                return _instance;
             }
         }
         #endregion
 
         #region Propreties
-        private List<ResourceInfo> resources = new List<ResourceInfo>();
+        private List<ResourceInfo> _resources = new List<ResourceInfo>();
         /// <summary>
         /// Contains the resources info
         /// </summary>
-        public List<ResourceInfo> Resources
+        public List<ResourceInfo> resources
         {
-            get { return this.resources; }
-            set { this.resources = value; }
+            get { return this._resources; }
+            set { this._resources = value; }
         }
         #endregion
 
         #region Initialisation
         private ResourceInfoLibrary()
         {
-            resources.Clear();
-            resources.AddRange(GameDatabase.Instance.GetConfigNodes("RESOURCE_DEFINITION").Select(n => new ResourceInfo(n)));
+            _resources.Clear();
+            _resources.AddRange(GameDatabase.Instance.GetConfigNodes("RESOURCE_DEFINITION").Select(n => new ResourceInfo(n)));
         }
         #endregion
 
@@ -88,7 +88,7 @@ namespace KRES
         /// <param name="name">Name of the resource to find</param>
         public ResourceInfo GetResource(string name)
         {
-            return resources.Find(r => r.Name == name);
+            return _resources.Find(r => r.name == name);
         }
         #endregion
     }

@@ -36,22 +36,20 @@ namespace KRES.Data
         #region Overrides
         public override void OnSave(ConfigNode node)
         {
-            print("OnSave()");
             if (!HighLogic.LoadedSceneIsFlight) { return; }
             foreach(DataType type in data)
             {
-                ConfigNode t = node.AddNode(KRESUtils.GetTypeString(type.Type));
-                foreach (DataBody body in type.Bodies)
+                ConfigNode t = node.AddNode(KRESUtils.GetTypeString(type.type));
+                foreach (DataBody body in type.bodies)
                 {
-                    ConfigNode b = t.AddNode(body.Name);
-                    b.AddValue("currentError", body.CurrentError.ToString("0.00000"));
+                    ConfigNode b = t.AddNode(body.name);
+                    b.AddValue("currentError", body.currentError.ToString("0.00000"));
                 }
             }
         }
 
         public override void OnLoad(ConfigNode node)
         {
-            print("OnLoad()");
             if (!HighLogic.LoadedSceneIsFlight) { return; }
             CheckForDataNodes(node);
             GetNodes(node);
@@ -63,29 +61,27 @@ namespace KRES.Data
         {
             foreach (string type in KRESUtils.types.Values)
             {
-                if (!node.HasNode(type)) { goto Incomplete; }
+                if (!node.HasNode(type)) { AddNodes(node); }
                 ConfigNode t = node.GetNode(type);
                 foreach (CelestialBody body in KRESUtils.GetRelevantBodies(type))
                 {
-                    if (!t.HasNode(body.bodyName)) { goto Incomplete; }
+                    if (!t.HasNode(body.bodyName)) { AddNodes(node); return false; }
                 }
             }
             return true;
+        }
 
-            Incomplete:
+        private void AddNodes(ConfigNode node)
+        {
+            node.ClearNodes();
+            foreach (string type in KRESUtils.types.Values)
             {
-                print("no nodes");
-                node.ClearNodes();
-                foreach(string type in KRESUtils.types.Values)
+                ConfigNode t = node.AddNode(type);
+                foreach (CelestialBody body in KRESUtils.GetRelevantBodies(type))
                 {
-                    ConfigNode t = node.AddNode(type);
-                    foreach(CelestialBody body in KRESUtils.GetRelevantBodies(type))
-                    {
-                        ConfigNode b = t.AddNode(body.bodyName);
-                        b.AddValue("currentError", 1d);
-                    }
+                    ConfigNode b = t.AddNode(body.bodyName);
+                    b.AddValue("currentError", 1d);
                 }
-                return false;
             }
         }
 

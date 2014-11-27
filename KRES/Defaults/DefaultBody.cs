@@ -8,28 +8,28 @@ namespace KRES.Defaults
     public class DefaultBody
     {
         #region Properties
-        private string name = string.Empty;
-        public string Name
+        private string _name = string.Empty;
+        public string name
         {
-            get { return this.name; }
-            set { this.name = value; }
+            get { return this._name; }
+            set { this._name = value; }
         }
 
-        private List<DefaultResource> resources = new List<DefaultResource>();
-        public List<DefaultResource> Resources
+        private List<DefaultResource> _resources = new List<DefaultResource>();
+        public List<DefaultResource> resources
         {
-            get { return this.resources; }
-            set { this.resources = value; }
+            get { return this._resources; }
+            set { this._resources = value; }
         }
         #endregion
 
         #region Initialisation
         public DefaultBody(ConfigNode configNode, Random random)
         {
-            configNode.TryGetValue("name", ref this.name);
+            configNode.TryGetValue("name", ref this._name);
             foreach (ConfigNode resourceNode in configNode.GetNodes("KRES_RESOURCE"))
             {
-                this.resources.Add(new DefaultResource(resourceNode, random));
+                this._resources.Add(new DefaultResource(resourceNode, random));
             }
         }
         #endregion
@@ -37,9 +37,9 @@ namespace KRES.Defaults
         #region Public Methods
         public DefaultResource GetResource(string name)
         {
-            foreach (DefaultResource resource in this.resources)
+            foreach (DefaultResource resource in this._resources)
             {
-                if (resource.Name == name)
+                if (resource.name == name)
                 {
                     return resource;
                 }
@@ -49,14 +49,14 @@ namespace KRES.Defaults
 
         public DefaultResource GetResourceOfType(string name, string type)
         {
-            return this.Resources.Find(r => r.Name == name && r.Type == type);
+            return this.resources.Find(r => r.name == name && r.type == type);
         }
 
         public bool HasResource(string name)
         {
-            foreach (DefaultResource resource in this.resources)
+            foreach (DefaultResource resource in this._resources)
             {
-                if (resource.Name == name)
+                if (resource.name == name)
                 {
                     return true;
                 }
@@ -66,8 +66,8 @@ namespace KRES.Defaults
 
         public ConfigNode CreateConfigNode(string type)
         {
-            ConfigNode configNode = new ConfigNode(this.Name);
-            foreach (DefaultResource resource in this.Resources.Where(r => r.Type == type))
+            ConfigNode configNode = new ConfigNode(this.name);
+            foreach (DefaultResource resource in this.resources.Where(r => r.type == type))
             {
                 configNode.AddNode(resource.CreateConfigNode());
             }

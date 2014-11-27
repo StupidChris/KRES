@@ -107,7 +107,7 @@ namespace KRES
         #region Functions
         private void Update()
         {
-            if (!HighLogic.LoadedSceneIsFlight || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.Instance.DataSet) { return; }
+            if (!HighLogic.LoadedSceneIsFlight || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.instance.dataSet) { return; }
             if (this.body.Name != this.vessel.mainBody.bodyName)
             {
                 LoadData();
@@ -118,17 +118,17 @@ namespace KRES
 
         private void FixedUpdate()
         {
-            if (!HighLogic.LoadedSceneIsFlight || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.Instance.DataSet) { return; }
+            if (!HighLogic.LoadedSceneIsFlight || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.instance.dataSet) { return; }
             if (this.items.Count > 0 && this.scanning && currentError > maxPrecision)
             {
                 currentError -= this.scanner.Scan();
                 scannedFlag = false;
-                ResourceController.Instance.GetDataBody(this).CurrentError = this.currentError;
+                ResourceController.instance.GetDataBody(this).currentError = this.currentError;
             }
             else if (this.scanning && currentError <= maxPrecision)
             {
                 currentError = maxPrecision;
-                ResourceController.Instance.GetDataBody(this).CurrentError = this.currentError;
+                ResourceController.instance.GetDataBody(this).currentError = this.currentError;
                 this.scanning = false;
                 Events["GUIToggleScanning"].active = false;
                 status = "Complete";
@@ -262,24 +262,24 @@ namespace KRES
 
         private void LoadData()
         {
-            body = ResourceController.Instance.GetCurrentBody();
+            body = ResourceController.instance.GetCurrentBody();
             print(body.Name);
             items.Clear();
             items.AddRange(body.GetItemsOfType(scannerType));
-            print(String.Join(", ", items.Select(i => i.Name).ToArray()));
-            DataBody data = ResourceController.Instance.GetDataBody(this);
-            print(data.Name + " " + data.CurrentError);
-            this.currentError = data.CurrentError;
+            print(String.Join(", ", items.Select(i => i.name).ToArray()));
+            DataBody data = ResourceController.instance.GetDataBody(this);
+            print(data.name + " " + data.currentError);
+            this.currentError = data.currentError;
         }
 
         private string ItemPercentage(ResourceItem item)
         {
-            return (((currentError * item.ActualError) + 1d) * item.ActualDensity * 100d).ToString("0.00");
+            return (((currentError * item.actualError) + 1d) * item.actualDensity * 100d).ToString("0.00");
         }
 
         private string ItemError(ResourceItem item)
         {
-            return (item.ActualDensity * currentError * 100d).ToString("0.00");
+            return (item.actualDensity * currentError * 100d).ToString("0.00");
         }
         #endregion
 
@@ -303,7 +303,7 @@ namespace KRES
                 foreach (ResourceItem item in items)
                 {
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label(item.Name + presence, KRESUtils.GetLabelOfColour(item.Name), GUILayout.Width(120));
+                    GUILayout.Label(item.name + presence, KRESUtils.GetLabelOfColour(item.name), GUILayout.Width(120));
                     GUILayout.FlexibleSpace();
                     GUILayout.Label(String.Format("{0} ± {1}%", PercentageVisible ? ItemPercentage(item) : "--", PercentageVisible ? ItemError(item) : "--"));
                     GUILayout.EndHorizontal();

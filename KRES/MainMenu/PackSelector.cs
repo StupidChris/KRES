@@ -7,10 +7,10 @@ namespace KRES.MainMenu
     public class PackSelector : MonoBehaviour
     {
         #region Static Properties
-        private static bool isBeingDisplayed = false;
-        public static bool IsBeingDisplayed
+        private static bool _isBeingDisplayed = false;
+        public static bool isBeingDisplayed
         {
-            get { return isBeingDisplayed; }
+            get { return _isBeingDisplayed; }
         }
         #endregion
 
@@ -23,11 +23,12 @@ namespace KRES.MainMenu
         #region Initialisation
         private void Awake()
         {
-            isBeingDisplayed = true;
+            _isBeingDisplayed = true;
 
             this.windowPosition.x = (Screen.width / 2) - (this.windowPosition.width / 2);
             this.windowPosition.y = (Screen.height / 2) - (this.windowPosition.height / 2);
         }
+
         private void Start()
         {
             this.headingStyle = new GUIStyle(HighLogic.Skin.label);
@@ -74,13 +75,13 @@ namespace KRES.MainMenu
             GUILayout.BeginScrollView(Vector2.zero, false, true, new GUILayoutOption[] { });
             GUI.skin = null;
 
-            foreach (string defaultName in DefaultLibrary.GetDefaultNames())
+            foreach (string defaultName in DefaultsLibrary.GetDefaultNames())
             {
-                bool isSelected = (DefaultLibrary.GetSelectedDefault().Name == defaultName);
+                bool isSelected = (DefaultsLibrary.GetSelectedDefault().name == defaultName);
 
                 if (GUILayout.Toggle(isSelected, defaultName, HighLogic.Skin.button) != isSelected && isSelected == false)
                 {
-                    DefaultLibrary.SetSelectedDefault(DefaultLibrary.GetDefault(defaultName));
+                    DefaultsLibrary.SetSelectedDefault(DefaultsLibrary.GetDefault(defaultName));
                 }
             }
 
@@ -92,10 +93,10 @@ namespace KRES.MainMenu
         {
             GUILayout.BeginVertical(GUILayout.Width(200f));
             GUILayout.Label("Pack Name", this.headingStyle);
-            GUILayout.Label(DefaultLibrary.GetSelectedDefault().Name, this.infoStyle);
+            GUILayout.Label(DefaultsLibrary.GetSelectedDefault().name, this.infoStyle);
             GUILayout.Space(15f);
             GUILayout.Label("Description", this.headingStyle);
-            GUILayout.Label(DefaultLibrary.GetSelectedDefault().Description, this.infoStyle);
+            GUILayout.Label(DefaultsLibrary.GetSelectedDefault().description, this.infoStyle);
             GUILayout.EndVertical();
         }
         #endregion
@@ -103,7 +104,7 @@ namespace KRES.MainMenu
         #region Destroying
         private void OnDestroy()
         {
-            isBeingDisplayed = false;
+            _isBeingDisplayed = false;
         }
         #endregion
     }

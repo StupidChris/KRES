@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using UnityEngine;
@@ -11,86 +12,91 @@ namespace KRES
     {
         public class ResourceMap
         {
+            #region Fields
+            private bool fullShowing = false;
+            private bool scannedShowing = false;
+            #endregion
+
             #region Propreties
-            private string texturePath = string.Empty;
+            private string _texturePath = string.Empty;
             /// <summary>
             /// Gets the path to the resource texture
             /// </summary>
-            public string TexturePath
+            public string texturePath
             {
-                get { return this.texturePath; }
+                get { return this._texturePath; }
             }
 
-            private string scannedTexturePath = string.Empty;
+            private string _scannedTexturePath = string.Empty;
             /// <summary>
             /// Path to the Scanned texture of this instance
             /// </summary>
-            public string ScannedTexturePath
+            public string scannedTexturePath
             {
-                get { return this.scannedTexturePath; }
+                get { return this._scannedTexturePath; }
             }
 
-            private Color colour = KRESUtils.BlankColour;
+            private Color _colour = KRESUtils.blankColour;
             /// <summary>
             /// Gets and sets the colour used when generating the texture.
             /// </summary>
-            public Color Colour
+            public Color colour
             {
-                get { return this.colour; }
+                get { return this._colour; }
             }
 
-            private double minAltitude = double.NegativeInfinity;
+            private double _minAltitude = double.NegativeInfinity;
             /// <summary>
             /// Minimum altitude at which this resource can be found
             /// </summary>
-            public double MinAltitude
+            public double minAltitude
             {
-                get { return this.minAltitude; }
+                get { return this._minAltitude; }
             }
 
-            private double maxAltitude = double.PositiveInfinity;
+            private double _maxAltitude = double.PositiveInfinity;
             /// <summary>
             /// Maximum altitude at which this resource can be found
             /// </summary>
-            public double MaxAltitude
+            public double maxAltitude
             {
-                get { return this.maxAltitude; }
+                get { return this._maxAltitude; }
             }
 
-            private string[] biomes = new string[] { };
+            private string[] _biomes = new string[] { };
             /// <summary>
             /// Contains the only biomes where this resource can be found in
             /// </summary>
-            public string[] Biomes
+            public string[] biomes
             {
-                get { return this.biomes; }
+                get { return this._biomes; }
             }
 
-            private string[] excludedBiomes = new string[] { };
+            private string[] _excludedBiomes = new string[] { };
             /// <summary>
             /// Contains the only biomes this resource cannot be found in
             /// </summary>
-            public string[] ExcludedBiomes
+            public string[] excludedBiomes
             {
-                get { return this.excludedBiomes; }
+                get { return this._excludedBiomes; }
             }
             #endregion
 
             #region Initialisation
             public ResourceMap(DefaultResource resource, string body)
             {
-                string path = Path.Combine(KRESUtils.GetSavePath(), "KRESTextures/" + body + "/" + resource.Name);
-                this.texturePath = path + ".png";
-                this.scannedTexturePath = path + "_scanned.png";
-                this.colour = ResourceInfoLibrary.Instance.GetResource(resource.Name).Colour;
-                this.minAltitude = resource.MinAltitude;
-                this.maxAltitude = resource.MaxAltitude;
-                this.biomes = resource.Biomes;
-                this.excludedBiomes = resource.ExcludedBiomes;
-                if (!File.Exists(ScannedTexturePath))
+                string path = Path.Combine(KRESUtils.savePath, "KRESTextures/" + body + "/" + resource.name);
+                this._texturePath = path + ".png";
+                this._scannedTexturePath = path + "_scanned.png";
+                this._colour = ResourceInfoLibrary.instance.GetResource(resource.name).colour;
+                this._minAltitude = resource.minAltitude;
+                this._maxAltitude = resource.maxAltitude;
+                this._biomes = resource.biomes;
+                this._excludedBiomes = resource.excludedBiomes;
+                if (!File.Exists(scannedTexturePath))
                 {
                     Texture2D texture = new Texture2D(1440, 720, TextureFormat.ARGB32, false);
-                    File.WriteAllBytes(scannedTexturePath, texture.EncodeToPNG());
+                    File.WriteAllBytes(_scannedTexturePath, texture.EncodeToPNG());
                     Texture2D.Destroy(texture);
                 }
             }
@@ -100,7 +106,7 @@ namespace KRES
             public Texture2D GetTexture()
             {
                 Texture2D texture = new Texture2D(1440, 720, TextureFormat.ARGB32, false);
-                texture.LoadImage(File.ReadAllBytes(texturePath));
+                texture.LoadImage(File.ReadAllBytes(_texturePath));
                 return texture;
             }
 
@@ -109,34 +115,37 @@ namespace KRES
             /// </summary>
             public bool ShowTexture(string bodyName)
             {
-                foreach (Transform transform in ScaledSpace.Instance.scaledSpaceTransforms)
+                if (!this.fullShowing)
                 {
-                    if (transform.name == bodyName)
+                    foreach (Transform transform in ScaledSpace.Instance.scaledSpaceTransforms)
                     {
-                        bool containsMaterial = false;
-
-                        foreach (Material material in transform.renderer.materials)
+                        if (transform.name == bodyName)
                         {
-                            if (material.name.Contains("KRESResourceMap"))
+                            bool containsMaterial = false;
+
+                            foreach (Material material in transform.renderer.materials)
                             {
-                                containsMaterial = true;
-                                material.mainTexture = GetTexture();
-                                break;
+                                if (material.name.Contains("KRESResourceMap" + bodyName))
+                                {
+                                    containsMaterial = true;
+                                    material.mainTexture = GetTexture();
+                                    break;
+                                }
                             }
-                        }
 
-                        if (!containsMaterial)
-                        {
-                            Material material = new Material(Shader.Find("Unlit/Transparent"));
-                            material.name = "KRESResourceMap";
-                            material.mainTexture = GetTexture();
+                            if (!containsMaterial)
+                            {
+                                Material material = new Material(Shader.Find("Unlit/Transparent"));
+                                material.name = "KRESResourceMap" + bodyName;
+                                material.mainTexture = GetTexture();
 
-                            Material[] materials = transform.renderer.materials;
-                            Array.Resize<Material>(ref materials, materials.Length + 1);
-                            materials[materials.Length - 1] = material;
-                            transform.renderer.materials = materials;
+                                List<Material> materials = new List<Material>(transform.renderer.materials);
+                                materials.Add(material);
+                                transform.renderer.materials = materials.ToArray();
+                            }
+                            this.fullShowing = true;
+                            return true;
                         }
-                        return true;
                     }
                 }
                 return false;
@@ -147,16 +156,23 @@ namespace KRES
             /// </summary>
             public bool HideTexture(string bodyName)
             {
-                foreach (Transform transform in ScaledSpace.Instance.scaledSpaceTransforms)
+                if (this.fullShowing)
                 {
-                    if (transform.name == bodyName)
+                    foreach (Transform transform in ScaledSpace.Instance.scaledSpaceTransforms)
                     {
-                        foreach (Material material in transform.renderer.materials)
+                        if (transform.name == bodyName)
                         {
-                            if (material.name.Contains("KRESResourceMap"))
+                            foreach (Material material in transform.renderer.materials)
                             {
-                                material.mainTexture = KRESUtils.BlankTexture;
-                                return true;
+                                if (material.name.Contains("KRESResourceMap" + bodyName))
+                                {
+                                    this.fullShowing = false;
+                                    Texture t = material.mainTexture;
+                                    material.mainTexture = KRESUtils.blankTexture;
+                                    Texture.Destroy(t);
+                                    Resources.UnloadUnusedAssets();
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -166,9 +182,9 @@ namespace KRES
 
             public void SaveScannedTexture(Texture2D texture)
             {
-                if (!string.IsNullOrEmpty(ScannedTexturePath))
+                if (!string.IsNullOrEmpty(scannedTexturePath))
                 {
-                    File.WriteAllBytes(ScannedTexturePath, texture.EncodeToPNG());
+                    File.WriteAllBytes(scannedTexturePath, texture.EncodeToPNG());
                     Texture2D.Destroy(texture);
                 }
             }
@@ -176,117 +192,113 @@ namespace KRES
             public Texture2D GetScannedTexture()
             {
                 Texture2D texture = new Texture2D(1440, 720, TextureFormat.ARGB32, false);
-                texture.LoadImage(File.ReadAllBytes(ScannedTexturePath));
+                texture.LoadImage(File.ReadAllBytes(scannedTexturePath));
                 return texture;
             }
             #endregion
         }
 
-        #region Constants
-        private const double mapResolution = 1036800d;
-        #endregion
-
         #region Propreties
-        private ResourceType type = ResourceType.LIQUID;
+        private ResourceType _type = ResourceType.LIQUID;
         /// <summary>
         /// The type of resource this is
         /// </summary>
-        public ResourceType Type
+        public ResourceType type
         {
-            get { return this.type; }
+            get { return this._type; }
         }
 
-        private PartResourceDefinition resource = new PartResourceDefinition();
+        private PartResourceDefinition _resource = new PartResourceDefinition();
         /// <summary>
         /// Resource associated with this item
         /// </summary>
-        public PartResourceDefinition Resource
+        public PartResourceDefinition resource
         {
-            get { return this.resource; }
+            get { return this._resource; }
         }
 
         /// <summary>
         /// Name of the resource
         /// </summary>
-        public string Name
+        public string name
         {
-            get { return this.Resource.name; }
+            get { return this.resource.name; }
         }
 
-        private double actualError = 0d;
+        private double _actualError = 0;
         /// <summary>
         /// How far away from the real value will this appear
         /// </summary>
-        public double ActualError
+        public double actualError
         {
-            get { return this.actualError; }
+            get { return this._actualError; }
         }
 
-        private double actualDensity = 0d;
+        private double _actualDensity = 0;
         /// <summary>
         /// Actual density of this resource on the planet
         /// </summary>
-        public double ActualDensity
+        public double actualDensity
         {
-            get { return this.actualDensity; }
+            get { return this._actualDensity; }
         }
 
-        private ResourceMap map = null;
+        private ResourceMap _map = null;
         /// <summary>
         /// ResourceMap associated with this ResourceItem
         /// </summary>
-        public ResourceMap Map
+        public ResourceMap map
         {
-            get { return this.map; }
+            get { return this._map; }
         }
 
         /// <summary>
         /// Whether this ResourceItem has a ResourceMap or not
         /// </summary>
-        public bool HasMap
+        public bool hasMap
         {
-            get { return this.map != null; }
+            get { return this._map != null; }
         }
         #endregion
 
         #region Initialisation
         public ResourceItem(ConfigNode data, string resource, string body, string type, System.Random random)
         {
-            DefaultResource defaultResource = DefaultLibrary.GetDefault(MapGenerator.DefaultName).GetBody(body).GetResourceOfType(resource, type);
-            this.resource = PartResourceLibrary.Instance.GetDefinition(data.GetValue("name"));
-            this.type = KRESUtils.GetResourceType(type);
-            this.map = null;
-            if (!data.TryGetValue("actualDensity", ref actualDensity))
+            DefaultResource defaultResource = DefaultsLibrary.GetDefault(MapGenerator.defaultName).GetBody(body).GetResourceOfType(resource, type);
+            this._resource = PartResourceLibrary.Instance.GetDefinition(data.GetValue("name"));
+            this._type = KRESUtils.GetResourceType(type);
+            this._map = null;
+            if (!data.TryGetValue("actualDensity", ref _actualDensity))
             {
-                actualDensity = KRESUtils.Clamp01(defaultResource.Density * (0.97d + (random.NextDouble() * 0.06d)));
+                _actualDensity = KRESUtils.Clamp01(defaultResource.density * (0.97d + (random.NextDouble() * 0.06d)));
             }
 
-            if (!data.TryGetValue("actualError", ref actualError))
+            if (!data.TryGetValue("actualError", ref _actualError))
             {
-                actualError = (random.NextDouble() * 2d) - 1d;
-                data.AddValue("actualError", actualError);
+                _actualError = (random.NextDouble() * 2d) - 1d;
+                data.AddValue("actualError", _actualError);
             }
         }
 
         public ResourceItem(ConfigNode data, string resource, string body, System.Random random)
         {
-            DefaultResource defaultResource = DefaultLibrary.GetDefault(MapGenerator.DefaultName).GetBody(body).GetResourceOfType(resource, "ore");
-            this.resource = PartResourceLibrary.Instance.GetDefinition(resource);
-            this.type = ResourceType.ORE;
-            double density = defaultResource.Density;
-            this.map = new ResourceMap(defaultResource, body);
-            if (!data.TryGetValue("actualDensity", ref actualDensity))
+            DefaultResource defaultResource = DefaultsLibrary.GetDefault(MapGenerator.defaultName).GetBody(body).GetResourceOfType(resource, "ore");
+            this._resource = PartResourceLibrary.Instance.GetDefinition(resource);
+            this._type = ResourceType.ORE;
+            double density = defaultResource.density;
+            this._map = new ResourceMap(defaultResource, body);
+            if (!data.TryGetValue("actualDensity", ref _actualDensity))
             {
-                Texture2D texture = Map.GetTexture();
-                actualDensity = texture.GetPixels().Count(p => p.a > 0) / mapResolution;
+                Texture2D texture = map.GetTexture();
+                _actualDensity = (double)texture.GetPixels().Count(p => p.a > 0) / (double)SettingsLibrary.instance.mapResolution;
                 Texture2D.Destroy(texture);
-                data.AddValue("actualDensity", actualDensity);
+                data.AddValue("actualDensity", _actualDensity);
             }
 
-            if (!data.TryGetValue("actualError", ref actualError))
+            if (!data.TryGetValue("actualError", ref _actualError))
             {
-                actualError = (random.NextDouble() * 2d) - 1d;
-                data.AddValue("actualError", actualError);
+                _actualError = (random.NextDouble() * 2d) - 1d;
+                data.AddValue("actualError", _actualError);
             }
         }
         #endregion

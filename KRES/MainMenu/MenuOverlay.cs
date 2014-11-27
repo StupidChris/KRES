@@ -9,6 +9,7 @@ namespace KRES.MainMenu
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class MenuOverlay : MonoBehaviour
     {
+        #region Fields
         private Rect windowPosition = new Rect(Screen.width - 500f, 10f, 500f, 0);
         private int windowID = Guid.NewGuid().GetHashCode();
         private GUIStyle windowStyle, headingStyle, normalStyle, buttonStyle;
@@ -18,16 +19,17 @@ namespace KRES.MainMenu
         private Texture2D buttonTextureNormal = new Texture2D(32, 32, TextureFormat.ARGB32, false);
         private Texture2D buttonTextureHover = new Texture2D(32, 32, TextureFormat.ARGB32, false);
         private Texture2D buttonTextureActive = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+        #endregion
 
         private void Start()
         {
-            GUIStyle dottyFontStyle = KRESUtils.GetDottyFontStyle();
+            GUIStyle dottyFontStyle = KRESUtils.dottyFontStyle;
 
-            this.buttonTextureNormal.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.GetDLLPath(), "GUI/Button/Normal.png")));
-            this.buttonTextureHover.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.GetDLLPath(), "GUI/Button/Hover.png")));
-            this.buttonTextureActive.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.GetDLLPath(), "GUI/Button/Active.png")));
+            this.buttonTextureNormal.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.pluginDataURL, "Button/Normal.png")));
+            this.buttonTextureHover.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.pluginDataURL, "Button/Hover.png")));
+            this.buttonTextureActive.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.pluginDataURL, "Button/Active.png")));
 
-            this.version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            this.version = KRESUtils.assemblyVersion;
             this.windowStyle = new GUIStyle();
 
             this.headingStyle = new GUIStyle(dottyFontStyle);
@@ -57,8 +59,8 @@ namespace KRES.MainMenu
         private void Window(int windowID)
         {
             GUILayout.Label("KSP Resource Expansion System", this.headingStyle);
-            GUILayout.Label("Currently Selected Resource Pack: " + DefaultLibrary.GetSelectedDefault().Name, this.normalStyle);
-            if (GUILayout.Button("Select Resource Pack", this.buttonStyle) && !PackSelector.IsBeingDisplayed)
+            GUILayout.Label("Currently Selected Resource Pack: " + DefaultsLibrary.GetSelectedDefault().name, this.normalStyle);
+            if (GUILayout.Button("Select Resource Pack", this.buttonStyle) && !PackSelector.isBeingDisplayed)
             {
                 new GameObject("PackSelector", typeof(PackSelector));
             }

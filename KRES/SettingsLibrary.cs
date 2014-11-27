@@ -1,43 +1,63 @@
 ﻿using System.IO;
 using UnityEngine;
+using KRES.Extensions;
 
 namespace KRES
 {
     public class SettingsLibrary
     {
         #region Instance
-        private static SettingsLibrary instance;
-        public static SettingsLibrary Instance
+        private static SettingsLibrary _instance;
+        /// <summary>
+        /// Current instance of the settings library
+        /// </summary>
+        public static SettingsLibrary instance
         {
             get
             {
-                if (instance == null)
+                if (_instance == null)
                 {
-                    instance = new SettingsLibrary();
+                    _instance = new SettingsLibrary();
                 }
-                return instance;
+                return _instance;
             }
         }
         #endregion
 
-        #region Fields
-        private ConfigNode configNode = new ConfigNode();
-        #endregion
-
         #region Properties
-        private string fileFullName = Path.Combine(KRESUtils.GetDLLPath(), "KRESSettings.txt");
-        public string FileFullName
+        private ushort _mapWidth = 1440;
+        /// <summary>
+        /// Resource map generation width
+        /// </summary>
+        public ushort mapWidth
         {
-            get { return this.fileFullName; }
-            set { this.fileFullName = value; }
+            get { return this._mapWidth; }
         }
-        #endregion
 
-        #region Static Properties
-        public static ConfigNode ConfigNode
+        private ushort _mapHeight = 720;
+        /// <summary>
+        /// Resource map generation height
+        /// </summary>
+        public ushort mapHeight
         {
-            get { return Instance.configNode; }
-            set { Instance.configNode = value; }
+            get { return this._mapHeight; }
+        }
+
+        /// <summary>
+        /// Resolution in pixels of the resource maps
+        /// </summary>
+        public uint mapResolution
+        {
+            get { return (uint)this._mapWidth * (uint)this._mapHeight; }
+        }
+
+        private ushort _maxLinesPerFrame = 90;
+        /// <summary>
+        /// Max lines itterated per frame when creating resource maps
+        /// </summary>
+        public ushort maxLinesPerFrame
+        {
+            get { return this._maxLinesPerFrame; }
         }
         #endregion
 
@@ -48,15 +68,26 @@ namespace KRES
         }
         #endregion
 
-        #region Static Methods
-        public static void Save()
+        #region Methods
+        private void Load()
         {
-            ConfigNode.Save(Instance.FileFullName);
+            string path = Path.Combine(KRESUtils.pluginDataURL, "KRESSettings.cfg");
+            if (!File.Exists(path)) { throw new FileNotFoundException("KRES Settings file could not be found", path); }
+            ConfigNode node = ConfigNode.Load(path), settings = null;
+            if (!node.TryGetNode("SETTINGS", ref settings)) { throw new FileNotFoundException("KRES Settings file did not have a SETTINGS node", path); }
+            settings.TryGetValue("mapWidth", ref this._mapWidth);
+            settings.TryGetValue("mapHeight", ref this._mapHeight);
+            settings.TryGetValue("maxLinesPerFrame", ref this._maxLinesPerFrame);
         }
 
-        public static void Load()
+        public static void Save()
         {
-            ConfigNode = ConfigNode.Load(Instance.FileFullName);
+            ConfigNode node = new ConfigNode(), settings = new ConfigNode("SETTINGS");
+            settings.AddValue("mapWidth", _instance._mapWidth);
+            settings.AddValue("mapHeight", _instance._mapHeight);
+            settings.AddValue("maxLinesPerFrame", _instance._maxLinesPerFrame);
+            node.AddNode(settings);
+            node.Save(Path.Combine(KRESUtils.pluginDataURL, "KRESSettings.cfg"));
         }
         #endregion
     }

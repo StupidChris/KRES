@@ -5,35 +5,35 @@ namespace KRES.Data
     public class DataType
     {
         #region Propreties
-        private ResourceType type = ResourceType.ORE;
-        public ResourceType Type
+        private ResourceType _type = ResourceType.ORE;
+        public ResourceType type
         {
-            get { return this.type; }
+            get { return this._type; }
         }
 
-        private List<DataBody> bodies = new List<DataBody>();
-        public List<DataBody> Bodies
+        private List<DataBody> _bodies = new List<DataBody>();
+        public List<DataBody> bodies
         {
-            get { return this.bodies; }
+            get { return this._bodies; }
         }
         #endregion
 
         #region Contructor
         public DataType(string type)
         {
-            this.type = KRESUtils.GetResourceType(type);
+            this._type = KRESUtils.GetResourceType(type);
             foreach (CelestialBody body in KRESUtils.GetRelevantBodies(type))
             {
-                bodies.Add(new DataBody(body.bodyName, type));
+                _bodies.Add(new DataBody(body.bodyName, type));
             }
         }
 
         public DataType(ConfigNode type)
         {
-            this.type = KRESUtils.GetResourceType(type.name);
+            this._type = KRESUtils.GetResourceType(type.name);
             foreach (ConfigNode body in type.nodes)
             {
-                bodies.Add(new DataBody(body, type.name));
+                _bodies.Add(new DataBody(body, type.name));
             }
         }
         #endregion
@@ -41,7 +41,7 @@ namespace KRES.Data
         #region Methods
         public DataBody GetBody(string name)
         {
-            return this.Bodies.Find(b => b.Name == name);
+            return this.bodies.Find(b => b.name == name);
         }
         #endregion
     }

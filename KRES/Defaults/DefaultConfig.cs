@@ -7,22 +7,22 @@ namespace KRES.Defaults
     public class DefaultConfig
     {
         #region Properties
-        private string name = string.Empty;
-        public string Name
+        private string _name = string.Empty;
+        public string name
         {
-            get { return this.name; }
+            get { return this._name; }
         }
 
-        private string description = string.Empty;
-        public string Description
+        private string _description = string.Empty;
+        public string description
         {
-            get { return this.description; }
+            get { return this._description; }
         }
 
-        private List<DefaultBody> bodies = new List<DefaultBody>();
-        public List<DefaultBody> Bodies
+        private List<DefaultBody> _bodies = new List<DefaultBody>();
+        public List<DefaultBody> bodies
         {
-            get { return this.bodies; }
+            get { return this._bodies; }
         }
         #endregion
 
@@ -31,14 +31,14 @@ namespace KRES.Defaults
 
         public DefaultConfig(ConfigNode configNode)
         {
-            configNode.TryGetValue("name", ref this.name);
-            configNode.TryGetValue("description", ref this.description);
+            configNode.TryGetValue("name", ref this._name);
+            configNode.TryGetValue("description", ref this._description);
             Random random = new Random();
             foreach (ConfigNode bodyNode in configNode.GetNodes("KRES_BODY"))
             {
                 if (KRESUtils.IsCelestialBody(bodyNode.GetValue("name")))
                 {
-                    this.bodies.Add(new DefaultBody(bodyNode, random));
+                    this._bodies.Add(new DefaultBody(bodyNode, random));
                 }
             }
         }
@@ -47,9 +47,9 @@ namespace KRES.Defaults
         #region Public Methods
         public DefaultBody GetBody(string name)
         {
-            foreach (DefaultBody body in this.bodies)
+            foreach (DefaultBody body in this._bodies)
             {
-                if (body.Name == name)
+                if (body.name == name)
                 {
                     return body;
                 }
@@ -59,10 +59,23 @@ namespace KRES.Defaults
 
         public bool HasBody(string name)
         {
-            foreach (DefaultBody body in this.bodies)
+            foreach (DefaultBody body in this._bodies)
             {
-                if (body.Name == name)
+                if (body.name == name)
                 {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public bool TryGetBody(string name, ref DefaultBody body)
+        {
+            foreach (DefaultBody b in this._bodies)
+            {
+                if (b.name == name)
+                {
+                    body = b;
                     return true;
                 }
             }
@@ -71,35 +84,19 @@ namespace KRES.Defaults
 
         public ConfigNode CreateConfigNode(bool addRootNode = false)
         {
-            ConfigNode configNode = null;
-            if (addRootNode)
-            {
-                configNode = new ConfigNode("KRES");
-            }
-            else
-            {
-                configNode = new ConfigNode();
-            }
+            ConfigNode configNode = addRootNode ? new ConfigNode("KRES") : new ConfigNode();
 
-            configNode.AddValue("name", this.name);
-            configNode.AddValue("description", this.description);
+            configNode.AddValue("name", this._name);
+            configNode.AddValue("description", this._description);
             configNode.AddValue("generated", false);
-            configNode.AddValue("WARNING", "SPOILERS BELOW, PROCEED AT YOUR OWN RISK");
             foreach (string type in KRESUtils.types.Values)
             {
-                UnityEngine.Debug.Log("[KRES]: Creating " + type + " node");
+                DebugWindow.Log("Creating " + type + " node");
                 ConfigNode t = configNode.AddNode(type);
                 foreach (CelestialBody body in KRESUtils.GetRelevantBodies(type))
                 {
-                    if (HasBody(body.bodyName))
-                    {
-                        t.AddNode(this.bodies.Find(b => b.Name == body.name).CreateConfigNode(type));
-                    }
-                    else
-                    {
-                        t.AddNode(body.bodyName);
-                        UnityEngine.Debug.LogWarning("[KRES]: The " + this.name + " defaults file does not contain a definition of " + type + " for " + body.bodyName);
-                    }
+                    if (HasBody(body.bodyName)) { t.AddNode(this._bodies.Find(b => b.name == body.bodyName).CreateConfigNode(type)); }
+                    else { DebugWindow.Log("The " + this._name + " defaults file does not contain a definition in " + type + " for " + body.bodyName); }
                 }
             }
 

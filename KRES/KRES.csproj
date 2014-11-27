@@ -13,10 +13,10 @@
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\Output\KRES\Plugins\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -34,6 +34,10 @@
       <HintPath>..\Game\KSP_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="HeightmapManager, Version=1.0.5442.38738, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\Output\KRES\Plugins\HeightmapManager.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="UnityEngine">
       <HintPath>..\Game\KSP_Data\Managed\UnityEngine.dll</HintPath>
@@ -48,14 +52,14 @@
     <Compile Include="IScanner.cs" />
     <Compile Include="Data\DataManager.cs" />
     <Compile Include="ModuleKresScanner.cs" />
-    <Compile Include="ProgressBar.cs" />
+    <Compile Include="Progressbar.cs" />
     <Compile Include="ResourceItem.cs" />
     <Compile Include="ResourceInfoLibrary.cs" />
     <Compile Include="Defaults\DefaultBody.cs" />
-    <Compile Include="Defaults\DefaultLibrary.cs" />
+    <Compile Include="Defaults\DefaultsLibrary.cs" />
     <Compile Include="Defaults\DefaultResource.cs" />
     <Compile Include="Defaults\DefaultConfig.cs" />
-    <Compile Include="Extensions\ConfigNodeExt.cs" />
+    <Compile Include="Extensions\ConfigNodeExtensions.cs" />
     <Compile Include="MainMenu\MenuOverlay.cs" />
     <Compile Include="KRESUtils.cs" />
     <Compile Include="MainMenu\PackSelector.cs" />
@@ -68,9 +72,7 @@
     <Compile Include="SettingsLibrary.cs" />
     <Compile Include="StorageModule.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Settings\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>xcopy "$(SolutionDir)Output\*" "$(SolutionDir)Game\GameData\*" /D /E /C /R /I /K /Y</PostBuildEvent>

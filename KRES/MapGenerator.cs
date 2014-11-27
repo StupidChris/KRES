@@ -2,9 +2,11 @@
 using System.Linq;
 using System.Collections.Generic;
 using System.IO;
+using System.Diagnostics;
 using UnityEngine;
 using KRES.Defaults;
 using KRES.Extensions;
+using HeightmapManager;
 
 namespace KRES
 {
@@ -12,13 +14,30 @@ namespace KRES
     public class MapGenerator : MonoBehaviour
     {
         #region Fields
-        private string texturePath = Path.Combine(KRESUtils.GetSavePath(), "KRESTextures");
-        private string currentBody = string.Empty;
-        private string currentResource = string.Empty;
-        private System.Diagnostics.Stopwatch timer = new System.Diagnostics.Stopwatch();
-        private double amountComplete = 0f, max = 0f;
-        private ConfigNode settings = new ConfigNode("settings"), cfg = new ConfigNode("KRES");
-        private int ID = Guid.NewGuid().GetHashCode();
+        //Generation
+        private string texturePath = Path.Combine(KRESUtils.savePath, "KRESTextures");
+        private string path = string.Empty;
+        private ushort height = 0, width = 0;
+        private ConfigNode currentBody = null;
+        private string bodyName = string.Empty;
+        private string resourceName = string.Empty;
+        private DefaultBody defaultBody = null;
+        private DefaultResource currentResource = null;
+        private Color currentColor = KRESUtils.blankColour;
+        private Color[] rawMap = new Color[0];
+        private Texture2D map = new Texture2D(1, 1);
+        private ConfigNode[] dataNodes = new ConfigNode[0];
+        private Stopwatch timer = new Stopwatch(), mapTimer = new Stopwatch();
+        private DefaultConfig config = null;
+        private Heightmap heightmap = null;
+        private SettingsLibrary set = null;
+        private ConfigNode settings = new ConfigNode(), ores = null;
+        private List<CelestialBody> relevantBodies = new List<CelestialBody>();
+        private Simplex simplex = new Simplex();
+        private double amountComplete = 0, max = 0, current = 0;
+
+        //GUI
+        private int id = Guid.NewGuid().GetHashCode();
         private bool visible = false;
         private Rect window = new Rect();
         private GUISkin skins = HighLogic.Skin;
@@ -27,238 +46,241 @@ namespace KRES
         private Rect bgPos = new Rect();
         private Rect barPos = new Rect();
         private double time = 0d;
-        private ProgressBar progressBar = new ProgressBar();
-        private List<CelestialBody> relevantBodies = new List<CelestialBody>();
+        private Progressbar progressbar = new Progressbar();
         #endregion
 
         #region Propreties
-        private static bool generated = false;
-        public static bool Generated
+        private static bool _generated = false;
+        /// <summary>
+        /// If the 
+        /// </summary>
+        public static bool generated
         {
-            get { return generated; }
+            get { return _generated; }
         }
 
-        private static string defaultName = string.Empty;
-        public static string DefaultName
+        private static string _defaultName = string.Empty;
+        public static string defaultName
         {
-            get { return defaultName; }
-        }
-        #endregion
-
-        #region Methods
-        private IEnumerator<YieldInstruction> GenerateAllMaps()
-        {
-            double doing = -1d;
-            foreach (ConfigNode body in cfg.GetNode("ore").nodes)
-            {
-                CelestialBody planet = null;
-                if (KRESUtils.TryParseCelestialBody(body.name, out planet) && relevantBodies.Contains(planet))
-                {
-                    currentResource = string.Empty;
-                    doing++;
-                    currentBody = planet.name;
-                    DefaultBody defaultBody = DefaultLibrary.GetSelectedDefault().GetBody(planet.bodyName);
-                    if (!Directory.Exists(Path.Combine(texturePath, body.name)))
-                    {
-                        Debug.LogWarning("[KRES]: Created texture folder for " + body.name);
-                        Directory.CreateDirectory(Path.Combine(texturePath, body.name));
-                    }
-                    string path = Path.Combine(texturePath, body.name);
-                    double current = -1d;
-                    double res = (1d / body.GetNodes("KRES_DATA").Count());
-                    foreach (ConfigNode resource in body.GetNodes("KRES_DATA"))
-                    {
-                        current++;
-                        amountComplete = (doing + (current * res)) / max;
-                        string resourceName = string.Empty;
-                        if (!resource.TryGetValue("name", ref resourceName))
-                        {
-                            Debug.LogWarning("[KRES]: Nameless resource for " + body.name);
-                            continue;
-                        }
-                        currentResource = resourceName;
-                        yield return null;
-                        DefaultResource defaultResource = defaultBody.GetResourceOfType(resourceName, "ore");
-                        Color colour = ResourceInfoLibrary.Instance.GetResource(resourceName).Colour;
-
-                        if (colour.a == 0)
-                        {
-                            Debug.LogWarning("[KRES]: Invalid colour for node " + resourceName + " for " + body.name);
-                            continue;
-                        }
-                        if (defaultResource.Density == 0 || defaultResource.Octaves == 0 || defaultResource.Persistence == 0 || defaultResource.Frequency == 0)
-                        {
-                            Debug.LogWarning("[KRES]: Invalid values for node " + resourceName + "for " + body.name);
-                            continue;
-                        }
-
-                        //Map generation
-                        Simplex simplex = new Simplex(defaultResource.Seed, defaultResource.Octaves, defaultResource.Persistence, defaultResource.Frequency);
-                        Texture2D map = new Texture2D(1440, 720, TextureFormat.ARGB32, false);
-
-                        var timer = System.Diagnostics.Stopwatch.StartNew();
-                        for (int x = 0; x < 1440; x++)
-                        {
-                            double lon = 90d - (x / 4d);
-                            for (int y = 0; y < 720; y++)
-                            {
-                                double lat = (y / 4d) - 90d;
-
-                                //Takes too much time to process ~50s per texture, will have to do on scanning.
-                                /*
-                                if (!double.IsInfinity(defaultResource.MinAltitude) || !double.IsInfinity(defaultResource.MaxAltitude))
-                                {
-                                    double alt = planet.TerrainAltitude(lat, lon);
-                                    if (alt > defaultResource.MaxAltitude || alt < defaultResource.MinAltitude)
-                                    {
-                                        map.SetPixel(x, y, KRESUtils.BlankColour);
-                                        continue;
-                                    }
-                                }
-                                */
-
-                                if (defaultResource.Biomes.Length > 0 || defaultResource.ExcludedBiomes.Length > 0)
-                                {
-                                    string biome = planet.GetBiome(lat, lon);
-                                    if ((defaultResource.Biomes.Length > 0 && !defaultResource.Biomes.Contains(biome)) || (defaultResource.ExcludedBiomes.Length > 0 && defaultResource.ExcludedBiomes.Contains(biome)))
-                                    {
-                                        map.SetPixel(x, y, KRESUtils.BlankColour);
-                                        continue;
-                                    }
-                                }
-
-                                Vector3d position = KRESUtils.SphericalToCartesian(10d, x / 4d, y / 4d);
-                                double density = simplex.noiseNormalized(position) - 1d + defaultResource.Density;
-                                if (density > 0)
-                                {
-                                    float a = Mathf.Lerp(0.2f, 1f, (float)(density / defaultResource.Density)) * colour.a;
-                                    if (a > 0.8f) { a = 0.8f; }
-                                    map.SetPixel(x, y, new Color(colour.r, colour.g, colour.b, a));
-                                }
-                                else { map.SetPixel(x, y, KRESUtils.BlankColour); }
-                            }
-                            if (x % 360 == 0) { yield return null; }
-                        }
-                        map.Apply();
-
-                        //Save texture
-                        File.WriteAllBytes(Path.Combine(path, resourceName + ".png"), map.EncodeToPNG());
-                        Destroy(map);
-                        timer.Stop();
-                        print(String.Format("[KRES]: Texture for {0} on {1} created in {2}ms", resourceName, currentBody, timer.ElapsedMilliseconds));
-                    }
-                }
-            }
-            amountComplete = 1d;
+            get { return _defaultName; }
         }
         #endregion
 
         #region Initialization
-        private void Awake()
+        private void Start()
         {
-            if (!Generated)
+            if (!generated)
             {
                 ConfigNode test = null;
 
-                if (!File.Exists(KRESUtils.DataURL)) { Debug.LogWarning("[KRES]: The KRESData.cfg file is missing"); }
+                if (!File.Exists(KRESUtils.dataURL))
+                {
+                    DebugWindow.Log("The data config file is missing, creating a new version");
+                    test = new ConfigNode();
+                    DefaultsLibrary.SaveSelectedDefault(test, KRESUtils.dataURL);
+                    settings = test.GetNode("KRES");
+                    settings.TryGetValue("name", ref _defaultName);
+                    config = DefaultsLibrary.GetSelectedDefault();
+                    DebugWindow.Log("Created and saved new data config");
+                }
                 else
                 {
-                    test = ConfigNode.Load(KRESUtils.DataURL);
-                    if (!DefaultLibrary.HasComponents(test))
+                    test = ConfigNode.Load(KRESUtils.dataURL);
+                    if (!test.TryGetNode("KRES", ref this.settings))
                     {
-                        Debug.LogWarning("[KRES]: The KRESData.cfg file is missing components");
-                        test = null;
+                        DebugWindow.Log("Failed to correctly load the settings file, aborting");
+                        return;
                     }
-                }
-
-                if (test == null)
-                {
-                    test = new ConfigNode("test");
-                    print("[KRES]: Creating new KRESSettings.cfg");
-                    DefaultLibrary.SaveSelectedDefault(test, KRESUtils.DataURL);
-                    settings = ConfigNode.Load(KRESUtils.DataURL);
-                    cfg = settings.GetNode("KRES");
-                    print("[KRES]: Successfully created and saved new KRESData.cfg");
-                    cfg.TryGetValue("name", ref defaultName);
-                    cfg.TryGetValue("generated", ref generated);
-                }
-                else
-                {
-                    print("[KRES]: Successfully loaded KRESData.cfg");
-                    settings = test;
-                    cfg = settings.GetNode("KRES");
-                    cfg.TryGetValue("name", ref defaultName);
-                    cfg.TryGetValue("generated", ref generated);
+                    else
+                    {
+                        settings.TryGetValue("name", ref _defaultName);
+                        if (!DefaultsLibrary.TryGetDefault(_defaultName, ref config))
+                        {
+                            DebugWindow.Log("Loaded default does not exist, aborting");
+                            return;
+                        }
+                        settings.TryGetValue("generated", ref _generated);
+                        DebugWindow.Log("Successfully loaded data config");
+                    }
                 }
 
                 if (!Directory.Exists(texturePath))
                 {
-                    Debug.LogWarning("[KRES]: KRESTextures directory does not exist in the save file");
+                    DebugWindow.Log("Textures directory does not exist in the save file");
                     Directory.CreateDirectory(texturePath);
-                    generated = false;
-                    print("[KRES]: Successfully created texture directory");
+                    _generated = false;
+                    DebugWindow.Log("Successfully created texture directory");
                 }
 
-                if (!Generated)
+                if (!generated)
                 {
-                    if (defaultName != DefaultLibrary.GetSelectedDefault().Name)
+                    DebugWindow.Log("Generating resource maps");
+                    if (!settings.TryGetNode("ore", ref ores))
                     {
-                        print("[KRES]: Generating from new defaults: " + DefaultLibrary.GetSelectedDefault().Name);
-                        settings.ClearNodes();
-                        DefaultLibrary.SaveSelectedDefault(settings, KRESUtils.DataURL);
-                        settings = ConfigNode.Load(KRESUtils.DataURL);
-                        cfg = settings.GetNode("KRES");
-                        print("[KRES]: Generated new files from new defaults");
+                        DebugWindow.Log("No ore nodes detected, aborting generation process");
+                        return;
                     }
-
-                    print("[KRES]: Generating resource maps");
-                    timer.Start();
-
-                    relevantBodies = new List<CelestialBody>(KRESUtils.GetRelevantBodies("ore").Where(b => cfg.GetNode("ore").GetNode(b.bodyName).nodes.Count > 0));
-                    max = relevantBodies.Count;
+                    this.relevantBodies = new List<CelestialBody>(KRESUtils.GetRelevantBodies("ore").Where(b => this.ores.HasNode(b.bodyName) && this.ores.GetNode(b.bodyName).nodes.Count > 0));
+                    max = this.relevantBodies.Select(b => ores.GetNode(b.bodyName)).SelectMany(n => n.GetNodes("KRES_DATA")).Count();
+                    LoadProgressbar();
+                    this.set = SettingsLibrary.instance;
+                    this.width = this.set.mapWidth;
+                    this.height = this.set.mapHeight;
+                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "KRESMapGenerator");
                     StartCoroutine(GenerateAllMaps());
-                    bgPos = new Rect(0, 0, 374, 19);
-                    barPos = new Rect(2, 2, 370, 15);
-                    background.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.GetDLLPath(), "GUI/ProgressBar/progressBackground.png")));
-                    bar.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.GetDLLPath(), "GUI/ProgressBar/progressBar.png")));
-                    amountComplete = 0d;
-                    progressBar = new ProgressBar(bgPos, barPos, background, bar);
-                    progressBar.SetValue(0d);
-                    this.window = new Rect((Screen.width / 2) - 200, (Screen.height / 2) - 60, 400, 120);
-                    this.visible = true;
-                }
-                else if (!ResourceLoader.Loaded)
-                {
                     timer.Start();
-                    bgPos = new Rect(0, 0, 374, 19);
-                    barPos = new Rect(2, 2, 370, 15);
-                    background.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.GetDLLPath(), "GUI/ProgressBar/progressBackground.png")));
-                    bar.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.GetDLLPath(), "GUI/ProgressBar/progressBar.png")));
-                    amountComplete = 0d;
-                    progressBar = new ProgressBar(bgPos, barPos, background, bar);
-                    progressBar.SetValue(0d);
-                    this.window = new Rect((Screen.width / 2) - 200, (Screen.height / 2) - 60, 400, 120);
-                    this.visible = true;
-                    amountComplete = 1d;
+                }
+                else if (!ResourceLoader.loaded)
+                {
+                    this.amountComplete = 1;
+                    timer.Start();
+                    LoadProgressbar();
+                    ResourceLoader.instance.Load();
+                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "KRESMapGenerator");
                 }
             }
         }
         #endregion
 
-        #region Update
-        private void Update()
+        #region Methods
+        private void LoadProgressbar()
         {
-            if (amountComplete == 1d && !generated)
+            this.bgPos = new Rect(0, 0, 374, 19);
+            this.barPos = new Rect(2, 2, 370, 15);
+            this.background.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.pluginDataURL, "Progressbar/progressBackground.png")));
+            this.bar.LoadImage(File.ReadAllBytes(Path.Combine(KRESUtils.pluginDataURL, "Progressbar/progressbar.png")));
+            this.progressbar = new Progressbar(bgPos, barPos, background, bar);
+            this.progressbar.SetValue(0);
+            this.window = new Rect((Screen.width / 2) - 200, (Screen.height / 2) - 75, 400, 150);
+            this.visible = true;
+        }
+
+        private IEnumerator<YieldInstruction> GenerateAllMaps()
+        {
+            foreach (CelestialBody body in this.relevantBodies)
             {
-                print("[KRES]: Map generation complete");
-                print(String.Format("[KRES]: Map generation took a total of {0:0.000}s", timer.Elapsed.TotalSeconds));
-                generated = true;
-                cfg.SetValue("generated", bool.TrueString);
-                settings.ClearNodes();
-                settings.AddNode(cfg);
-                settings.Save(KRESUtils.DataURL);
-                ResourceLoader.Instance.Load();
+                this.bodyName = body.bodyName;
+                this.currentBody = this.ores.GetNode(this.bodyName);
+                this.defaultBody = this.config.GetBody(this.bodyName);
+                this.path = Path.Combine(texturePath, this.bodyName);
+                if (!Directory.Exists(this.path))
+                {
+                    Directory.CreateDirectory(this.path);
+                    DebugWindow.Log("Created texture folder for " + this.bodyName);
+                }
+                this.dataNodes = currentBody.GetNodes("KRES_DATA");
+                foreach (ConfigNode resource in dataNodes)
+                {
+                    this.current++;
+                    this.amountComplete = this.current / this.max;
+                    this.progressbar.SetValue(this.amountComplete);
+                    if (!resource.TryGetValue("name", ref this.resourceName))
+                    {
+                        DebugWindow.Log("Unnamed resource for " + this.currentBody + ", cycling to next resource");
+                        continue;
+                    }
+                    this.currentResource = this.defaultBody.GetResourceOfType(resourceName, "ore");
+                    this.currentColor = ResourceInfoLibrary.instance.GetResource(resourceName).colour;
+
+                    //Simplex values check
+                    if (this.currentResource.density == 0 || this.currentResource.octaves == 0 || this.currentResource.persistence == 0 || this.currentResource.frequency == 0)
+                    {
+                        DebugWindow.Log("Invalid simplex values for " + this.resourceName + " on " + this.bodyName + ", cycling to next resource");
+                        continue;
+                    }
+                    yield return new WaitForEndOfFrame();
+
+                    //Heightmap
+                    if (!double.IsNaN(this.currentResource.minAltitude) || !double.IsNaN(this.currentResource.maxAltitude))
+                    {
+                        string path = Path.Combine(KRESUtils.pluginDataURL, "Heightmaps/" + this.bodyName + "_raw.bin");
+                        if (File.Exists(path))
+                        {
+                            try
+                            {
+                                this.heightmap = new Heightmap(path);
+                            }
+                            catch (Exception e)
+                            {
+                                DebugWindow.Log(String.Format("Error loading the heightmap for {0}\n{1}\n{2}", this.bodyName, e.GetType().Name, e.StackTrace));
+                                this.heightmap = null;
+                            }
+                            if (this.heightmap.width != this.width || this.heightmap.height != this.height)
+                            {
+                                DebugWindow.Log(String.Format("Heightmap for {0} os not of the correct dimention, must be same dimention as the created resource map ({1}, {2})", this.bodyName, this, width, this.height));
+                                this.heightmap = null;
+                            }
+                        }
+                        else
+                        {
+                            DebugWindow.Log("No heightmap found for " + this.bodyName);
+                            this.heightmap = null;
+                        }
+                    }
+
+                    //Map generation
+                    this.simplex = new Simplex(this.currentResource.seed, this.currentResource.octaves, this.currentResource.persistence, this.currentResource.frequency);
+                    this.map = new Texture2D(this.width, this.height, TextureFormat.ARGB32, false);
+                    this.rawMap = new Color[this.width * this.height];
+                    DebugWindow.Log(String.Format("Creating texture for {0} on {1}", this.resourceName, this.bodyName));
+                    this.mapTimer = Stopwatch.StartNew();
+
+                    for (int y = 0; y < this.height; y++)
+                    {
+                        double latitude = ((y * 180) / (double)this.height) - 90;
+                        for (int x = 0; x < this.width; x++)
+                        {
+                            double longitude = 90 - ((x * 360) / (double)this.width);
+                            int index = (y * this.width) + x;
+
+                            if (this.heightmap != null)
+                            {
+                                double alt = this.heightmap[x, y];
+                                if (alt > this.currentResource.maxAltitude || alt < this.currentResource.minAltitude)
+                                {
+                                    continue;
+                                }
+                            }
+
+                            if (this.currentResource.biomes.Length > 0 || this.currentResource.excludedBiomes.Length > 0)
+                            {
+                                string biome = body.GetBiome(latitude, longitude);
+                                if (!this.currentResource.biomes.Contains(biome) || this.currentResource.excludedBiomes.Contains(biome))
+                                {
+                                    continue;
+                                }
+                            }
+
+                            double density = simplex.noiseNormalized(KRESUtils.SphericalToCartesian(10, 90 - longitude, latitude + 90)) - 1d + this.currentResource.density;
+                            if (density > 0)
+                            {
+                                float a = Mathf.Lerp(0.2f, 1f, (float)(density / this.currentResource.density));
+                                if (a > 0.8f) { a = 0.8f; }
+                                this.rawMap[index] = this.currentColor.A(a);
+                            }
+                        }
+                        if (y % this.set.maxLinesPerFrame == 0) { yield return new WaitForEndOfFrame(); }
+                    }
+
+                    //Save texture
+                    this.map.SetPixels(this.rawMap);
+                    this.map.Apply();
+                    File.WriteAllBytes(Path.Combine(this.path, this.resourceName + ".png"), this.map.EncodeToPNG());
+                    Texture2D.Destroy(this.map);
+                    this.mapTimer.Stop();
+                    DebugWindow.Log(String.Format("Map for {0} on {1} created in {2}ms", this.resourceName, this.bodyName, this.mapTimer.ElapsedMilliseconds));
+                }
             }
+            Resources.UnloadUnusedAssets();
+            this.progressbar.SetValue(1);
+            this.amountComplete = 1;
+            DebugWindow.Log(String.Format("Map generation took a total of {0:0.000}s", this.time));
+            _generated = true;
+            this.settings.SetValue("generated", bool.TrueString);
+            ConfigNode node = new ConfigNode();
+            node.AddNode(this.settings);
+            node.Save(KRESUtils.dataURL);
+            ResourceLoader.instance.Load();
         }
         #endregion
 
@@ -267,41 +289,41 @@ namespace KRES
         {
             if (this.visible)
             {
-                this.window = GUI.Window(this.ID, this.window, Window, "KRES Resource Loader", skins.window);
+                this.window = GUI.Window(this.id, this.window, Window, "KRES Resource Loader", skins.window);
             }
         }
 
         private void Window(int id)
         {
-            GUI.BeginGroup(new Rect(10, 10, 380, 120));
-            if (amountComplete == 1d && ResourceLoader.Loaded) { GUI.Label(new Rect(0, 20, 380, 15), "Complete", skins.label); }
-            else if (amountComplete != 1d) { GUI.Label(new Rect(0, 20, 380, 15), String.Concat("Currently generating: ", currentBody, " - ", currentResource), skins.label); }
-            else if (!ResourceLoader.Loaded) { GUI.Label(new Rect(0, 20, 380, 15), "Loading resources", skins.label); }
+            GUI.BeginGroup(new Rect(10, 10, 380, 130));
+            if (amountComplete == 1 && ResourceLoader.loaded) { GUI.Label(new Rect(0, 20, 380, 15), "Complete!", skins.label); }
+            else if (amountComplete != 1) { GUI.Label(new Rect(0, 20, 380, 15), String.Concat("Currently generating: ", this.bodyName, " - ", this.resourceName), skins.label); }
+            else if (!ResourceLoader.loaded) { GUI.Label(new Rect(0, 20, 380, 15), "Loading resources...", skins.label); }
             GUI.BeginGroup(new Rect(5, 50, 380, 30));
-            if (amountComplete != 1d || amountComplete == 1d && ResourceLoader.Loaded) { progressBar.SetValue(amountComplete); }
-            else if (amountComplete == 1d && !ResourceLoader.Loaded) { progressBar.SetValue(ResourceLoader.Instance.LoadPercent); }
-            progressBar.Draw();
+            if (amountComplete == 1 && !ResourceLoader.loaded) { this.progressbar.SetValue(ResourceLoader.instance.loadPercent); }
+            this.progressbar.Draw();
             GUI.EndGroup();
-            if (amountComplete == 1d && ResourceLoader.Loaded)
+            if (this.amountComplete == 1 && ResourceLoader.loaded)
             {
+                if (this.timer.IsRunning)
+                {
+                    this.timer.Stop();
+                    this.time = this.timer.Elapsed.TotalSeconds;
+                }
                 if (GUI.Button(new Rect(155, 80, 80, 25), "Close", skins.button))
                 {
                     this.visible = false;
+                    InputLockManager.RemoveControlLock("KRESMapGenerator");
                 }
-                if (timer.IsRunning)
-                {
-                    timer.Stop();
-                    time = timer.Elapsed.TotalSeconds;
-                }
-                GUI.Label(new Rect(240, 80, 140, 15), String.Format("Elapsed time: {0:0.000}s", time), skins.label);
+                GUI.Label(new Rect(240, 80, 140, 15), String.Format("Elapsed time: {0:0.000}s", this.time), skins.label);
             }
             else
             {
                 if (amountComplete == 1d)
                 {
-                    GUI.Label(new Rect(0, 80, 380, 15), "Please wait for resources to load. Do not leave the scene.", skins.label);
+                    GUI.Label(new Rect(0, 80, 380, 15), String.Format("Please wait for resources to load. Do not leave the scene.\nElapsed time: {0:0.000}s", this.timer.Elapsed.TotalSeconds), skins.label);
                 }
-                else { GUI.Label(new Rect(0, 80, 380, 15), "Please wait for map generation to finish. Do not leave the scene.", skins.label); }
+                else { GUI.Label(new Rect(0, 80, 380, 20), String.Format("Please wait for map generation to finish. Do not leave the scene.\nElapsed time: {0:0.000}s", this.timer.Elapsed.TotalSeconds), skins.label); }
             }
             GUI.EndGroup();
         }
@@ -310,9 +332,9 @@ namespace KRES
         #region Unloading
         private void OnDestroy()
         {
-            if (HighLogic.LoadedScene == GameScenes.MAINMENU && Generated)
+            if (HighLogic.LoadedScene == GameScenes.MAINMENU && generated)
             {
-                generated = false;
+                _generated = false;
             }
         }
         #endregion

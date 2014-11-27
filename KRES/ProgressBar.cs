@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace KRES
 {
-    public class ProgressBar
+    public class Progressbar
     {
         #region Fields
         private Texture2D background = new Texture2D(1, 1);
@@ -13,11 +13,11 @@ namespace KRES
         private double filled = 0d;
         #endregion
 
-        #region Initiation
+        #region Constructor
         /// <summary>
         /// Generates a new ProgressBar
         /// </summary>
-        public ProgressBar() { }
+        public Progressbar() { }
 
         /// <summary>
         /// Generates a new progressbar with the specified parameters
@@ -26,7 +26,7 @@ namespace KRES
         /// <param name="barPosition">Size and position of the progress bar</param>
         /// <param name="background">Texture of the background of the bar</param>
         /// <param name="bar">Texture for the progressbar</param>
-        public ProgressBar(Rect bgPosition, Rect barPosition, Texture2D background, Texture2D bar)
+        public Progressbar(Rect bgPosition, Rect barPosition, Texture2D background, Texture2D bar)
         {
             this.bgPosition = bgPosition;
             this.barPosition = barPosition;
@@ -55,16 +55,16 @@ namespace KRES
         /// <param name="max">Maximum value</param>
         public void SetValue(double value, double min, double max)
         {
-            if (value > max || min >= max) { this.filled = 1d; return; }
-            if (value < min) { this.filled = 0d; return; }
-            this.filled = (value - min) / (max - min);
+            if (value > max || min >= max) { this.filled = 1d; }
+            else if (value < min) { this.filled = 0d; }
+            else { this.filled = (value - min) / (max - min); }
         }
 
         /// <summary>
         /// Changes the GUIStyle of the background box
         /// </summary>
         /// <param name="background">GUIStyle of the box</param>
-        public void SetBackGround(Texture2D background)
+        public void SetBackground(Texture2D background)
         {
             this.background = background;
         }

@@ -8,42 +8,42 @@ namespace KRES.Data
     public class DataBody
     {
         #region Propreties
-        private string name = string.Empty;
-        public string Name
+        private string _name = string.Empty;
+        public string name
         {
-            get { return this.name; }
+            get { return this._name; }
         }
 
-        private string type = string.Empty;
-        public string Type
+        private string _type = string.Empty;
+        public string type
         {
-            get { return this.type; }
+            get { return this._type; }
         }
 
-        private double currentError = 1d;
-        public double CurrentError
+        private double _currentError = 1d;
+        public double currentError
         {
-            get { return this.currentError; }
-            set { this.currentError = value; }
+            get { return this._currentError; }
+            set { this._currentError = value; }
         }
         #endregion
 
         #region Constructor
         public DataBody(string body, string type)
         {
-            this.name = body;
-            this.type = type;
-            currentError = 1d;
+            this._name = body;
+            this._type = type;
+            _currentError = 1d;
         }
 
         public DataBody(ConfigNode body, string type)
         {
-            this.name = body.name;
-            this.type = type;
-            if (!body.TryGetValue("currentError", ref currentError))
+            this._name = body.name;
+            this._type = type;
+            if (!body.TryGetValue("currentError", ref _currentError))
             {
-                currentError = 1d;
-                body.AddValue("currentError", currentError.ToString("0.00000"));
+                _currentError = 1d;
+                body.AddValue("currentError", _currentError.ToString("0.00000"));
             }
         }
         #endregion

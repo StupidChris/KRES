@@ -9,21 +9,21 @@ namespace KRES
     public class ResourceController : MonoBehaviour
     {
         #region Instance
-        public static ResourceController Instance { get; private set; }
+        public static ResourceController instance { get; private set; }
         #endregion
 
         #region Properties
-        private List<ResourceBody> resourceBodies = new List<ResourceBody>();
+        private List<ResourceBody> _resourceBodies = new List<ResourceBody>();
         /// <summary>
         /// Gets and sets the global list of resource bodies.
         /// </summary>
-        public List<ResourceBody> ResourceBodies
+        public List<ResourceBody> resourceBodies
         {
-            get { return this.resourceBodies; }
-            set { this.resourceBodies = value; }
+            get { return this._resourceBodies; }
+            set { this._resourceBodies = value; }
         }
 
-        public bool DataSet
+        public bool dataSet
         {
             get
             {
@@ -36,9 +36,9 @@ namespace KRES
         #region Initialisation
         private void Awake()
         {
-            if (Instance == null)
+            if (instance == null)
             {
-                Instance = this;
+                instance = this;
                 DontDestroyOnLoad(this);
             }
             else
@@ -54,10 +54,10 @@ namespace KRES
         /// </summary>
         public void ShowResource(string resourceName)
         {
-            if (ResourceLoader.Loaded)
+            if (ResourceLoader.loaded)
             {
-                DebugWindow.Instance.Print("Showing: " + resourceName);
-                GetCurrentBody().ResourceItems.Find(i => i.HasMap && i.Name == resourceName).Map.ShowTexture(GetCurrentBody().Name);
+                DebugWindow.instance.Print("Showing: " + resourceName);
+                GetCurrentBody().ResourceItems.Find(i => i.hasMap && i.name == resourceName).map.ShowTexture(GetCurrentBody().Name);
             }
         }
 
@@ -66,10 +66,10 @@ namespace KRES
         /// </summary>
         public void HideResource(string resourceName)
         {
-            if (ResourceLoader.Loaded)
+            if (ResourceLoader.loaded)
             {
-                DebugWindow.Instance.Print("Hiding: " + resourceName);
-                GetCurrentBody().ResourceItems.Find(i => i.HasMap && i.Name == resourceName).Map.HideTexture(GetCurrentBody().Name);
+                DebugWindow.instance.Print("Hiding: " + resourceName);
+                GetCurrentBody().ResourceItems.Find(i => i.hasMap && i.name == resourceName).map.HideTexture(GetCurrentBody().Name);
             }
         }
 
@@ -78,14 +78,14 @@ namespace KRES
         /// </summary>
         public void HideAllResources()
         {
-            if (ResourceLoader.Loaded)
+            if (ResourceLoader.loaded)
             {
-                DebugWindow.Instance.Print("Hiding: All Resources");
-                foreach (ResourceBody body in this.resourceBodies)
+                DebugWindow.instance.Print("Hiding: All Resources");
+                foreach (ResourceBody body in this._resourceBodies)
                 {
-                    foreach (ResourceItem item in body.ResourceItems.Where(i => i.HasMap))
+                    foreach (ResourceItem item in body.ResourceItems.Where(i => i.hasMap))
                     {
-                        item.Map.HideTexture(body.Name);
+                        item.map.HideTexture(body.Name);
                     }
                 }
             }
@@ -96,7 +96,7 @@ namespace KRES
         /// </summary>
         public void UnloadResources()
         {
-            if (ResourceLoader.Loaded)
+            if (ResourceLoader.loaded)
             {
                 foreach (Transform transform in ScaledSpace.Instance.scaledSpaceTransforms)
                 {
@@ -106,7 +106,8 @@ namespace KRES
                 }
             }
 
-            this.resourceBodies.Clear();
+            this._resourceBodies.Clear();
+            this._resourceBodies.TrimExcess();
         }
 
         /// <summary>
@@ -115,7 +116,7 @@ namespace KRES
         /// <param name="name">Name of the body to find</param>
         public ResourceBody GetBody(string name)
         {
-            return ResourceBodies.Find(b => b.Name == name);
+            return resourceBodies.Find(b => b.Name == name);
         }
 
         /// <summary>
@@ -123,12 +124,16 @@ namespace KRES
         /// </summary>
         public ResourceBody GetCurrentBody()
         {
-            return ResourceBodies.Find(b => b.Name == FlightGlobals.currentMainBody.bodyName);
+            return resourceBodies.Find(b => b.Name == FlightGlobals.currentMainBody.bodyName);
         }
 
+        /// <summary>
+        /// Returns the DataBody associated to the current scanner
+        /// </summary>
+        /// <param name="scanner">Scanner module to get the body from</param>
         public DataBody GetDataBody(ModuleKresScanner scanner)
         {
-            if (DataSet) { return DataManager.Current.data.Find(d => d.Type == scanner.scannerType).GetBody(scanner.body.Name); }
+            if (dataSet) { return DataManager.Current.data.Find(d => d.type == scanner.scannerType).GetBody(scanner.body.Name); }
             else
             {
                 return new DataType(scanner.type).GetBody(scanner.body.Name);
