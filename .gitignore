@@ -35,6 +35,7 @@ x64/
 *.vspscc
 *.vssscc
 .builds
+Thumbs.db
 
 # Visual C++ cache files
 ipch/
