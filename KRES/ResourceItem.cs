@@ -262,15 +262,15 @@ namespace KRES
         #endregion
 
         #region Initialisation
-        public ResourceItem(ConfigNode data, string resource, string body, string type, System.Random random)
+        public ResourceItem(ConfigNode data, string resource, string body, ResourceType type, System.Random random)
         {
-            DefaultResource defaultResource = DefaultsLibrary.GetDefault(MapGenerator.defaultName).GetBody(body).GetResourceOfType(resource, type);
             this._resource = PartResourceLibrary.Instance.GetDefinition(data.GetValue("name"));
-            this._type = KRESUtils.GetResourceType(type);
+            this._type = type;
             this._map = null;
             if (!data.TryGetValue("actualDensity", ref _actualDensity))
             {
-                _actualDensity = KRESUtils.Clamp01(defaultResource.density * (0.97d + (random.NextDouble() * 0.06d)));
+                _actualDensity = KRESUtils.Clamp01(DefaultsLibrary.GetDefault(MapGenerator.defaultName).GetBody(body).GetResourceOfType(resource, type).density * (0.97 + (random.NextDouble() * 0.06d)));
+                data.AddValue("actualDensity", _actualDensity);
             }
 
             if (!data.TryGetValue("actualError", ref _actualError))
@@ -282,7 +282,7 @@ namespace KRES
 
         public ResourceItem(ConfigNode data, string resource, string body, System.Random random)
         {
-            DefaultResource defaultResource = DefaultsLibrary.GetDefault(MapGenerator.defaultName).GetBody(body).GetResourceOfType(resource, "ore");
+            DefaultResource defaultResource = DefaultsLibrary.GetDefault(MapGenerator.defaultName).GetBody(body).GetResourceOfType(resource, ResourceType.ORE);
             this._resource = PartResourceLibrary.Instance.GetDefinition(resource);
             this._type = ResourceType.ORE;
             double density = defaultResource.density;
@@ -292,6 +292,7 @@ namespace KRES
                 Texture2D texture = map.GetTexture();
                 _actualDensity = (double)texture.GetPixels().Count(p => p.a > 0) / (double)SettingsLibrary.instance.mapResolution;
                 Texture2D.Destroy(texture);
+                Resources.UnloadUnusedAssets();
                 data.AddValue("actualDensity", _actualDensity);
             }
 

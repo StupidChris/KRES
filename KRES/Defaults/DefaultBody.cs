@@ -47,7 +47,7 @@ namespace KRES.Defaults
             return null;
         }
 
-        public DefaultResource GetResourceOfType(string name, string type)
+        public DefaultResource GetResourceOfType(string name, ResourceType type)
         {
             return this.resources.Find(r => r.name == name && r.type == type);
         }
@@ -64,7 +64,7 @@ namespace KRES.Defaults
             return false;
         }
 
-        public ConfigNode CreateConfigNode(string type)
+        public ConfigNode CreateConfigNode(ResourceType type)
         {
             ConfigNode configNode = new ConfigNode(this.name);
             foreach (DefaultResource resource in this.resources.Where(r => r.type == type))

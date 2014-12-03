@@ -179,7 +179,7 @@ namespace KRES
                         DebugWindow.Log("Unnamed resource for " + this.currentBody + ", cycling to next resource");
                         continue;
                     }
-                    this.currentResource = this.defaultBody.GetResourceOfType(resourceName, "ore");
+                    this.currentResource = this.defaultBody.GetResourceOfType(resourceName, ResourceType.ORE);
                     this.currentColor = ResourceInfoLibrary.instance.GetResource(resourceName).colour;
 
                     //Simplex values check
@@ -307,6 +307,7 @@ namespace KRES
             {
                 if (this.timer.IsRunning)
                 {
+                    this.progressbar.SetValue(1);
                     this.timer.Stop();
                     this.time = this.timer.Elapsed.TotalSeconds;
                 }

@@ -15,8 +15,8 @@ namespace KRES.Defaults
             set { this._name = value; }
         }
 
-        private string _type = string.Empty;
-        public string type
+        private ResourceType _type = ResourceType.ORE;
+        public ResourceType type
         {
             get { return this._type; }
             set { this._type = value; }
@@ -89,7 +89,9 @@ namespace KRES.Defaults
         public DefaultResource(ConfigNode configNode, Random random)
         {
             configNode.TryGetValue("name", ref this._name);
-            configNode.TryGetValue("type", ref this._type);
+            string type = string.Empty;
+            configNode.TryGetValue("type", ref type);
+            this._type = KRESUtils.GetResourceType(type);
             configNode.TryGetValue("density", ref this._density);
             configNode.TryGetValue("octaves", ref this._octaves);
             configNode.TryGetValue("persistence", ref this._persistence);
@@ -98,7 +100,7 @@ namespace KRES.Defaults
             configNode.TryGetValue("maxAltitude", ref this._maxAltitude);
             configNode.TryGetValue("biomes", ref this._biomes);
             configNode.TryGetValue("excludedBiomes", ref this._excludedBiomes);
-            if (this._type == "ore") { this._seed = random.Next(999999999); }
+            if (this.type == ResourceType.ORE) { this._seed = random.Next(999999999); }
         }
         #endregion
 

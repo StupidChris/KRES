@@ -89,10 +89,10 @@ namespace KRES.Defaults
             configNode.AddValue("name", this._name);
             configNode.AddValue("description", this._description);
             configNode.AddValue("generated", false);
-            foreach (string type in KRESUtils.types.Values)
+            foreach (ResourceType type in KRESUtils.types.Keys)
             {
                 DebugWindow.Log("Creating " + type + " node");
-                ConfigNode t = configNode.AddNode(type);
+                ConfigNode t = configNode.AddNode(KRESUtils.GetTypeString(type));
                 foreach (CelestialBody body in KRESUtils.GetRelevantBodies(type))
                 {
                     if (HasBody(body.bodyName)) { t.AddNode(this._bodies.Find(b => b.name == body.bodyName).CreateConfigNode(type)); }

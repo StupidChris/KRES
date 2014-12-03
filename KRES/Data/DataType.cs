@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace KRES.Data
 {
@@ -19,12 +20,12 @@ namespace KRES.Data
         #endregion
 
         #region Contructor
-        public DataType(string type)
+        public DataType(ResourceType type)
         {
-            this._type = KRESUtils.GetResourceType(type);
+            this._bodies = new List<DataBody>();
             foreach (CelestialBody body in KRESUtils.GetRelevantBodies(type))
             {
-                _bodies.Add(new DataBody(body.bodyName, type));
+                this._bodies.Add(new DataBody(body.bodyName, type));
             }
         }
 
@@ -33,7 +34,7 @@ namespace KRES.Data
             this._type = KRESUtils.GetResourceType(type.name);
             foreach (ConfigNode body in type.nodes)
             {
-                _bodies.Add(new DataBody(body, type.name));
+                _bodies.Add(new DataBody(body, this._type));
             }
         }
         #endregion
@@ -41,6 +42,7 @@ namespace KRES.Data
         #region Methods
         public DataBody GetBody(string name)
         {
+            if (!this.bodies.Any(b => b.name == name)) { return null; }
             return this.bodies.Find(b => b.name == name);
         }
         #endregion

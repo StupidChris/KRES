@@ -9,22 +9,27 @@ namespace KRES.Data
     public class DataManager : ScenarioModule
     {
         #region Propreties
+        private static DataManager _current = null;
         /// <summary>
         /// Gets the current KRESDataManager for this save
         /// </summary>
-        public static DataManager Current
+        public static DataManager current
         {
             get
             {
-                //Borrowed from https://github.com/Majiir/Kethane/blob/master/Plugin/KethaneData.cs#L10-L28
-                Game game = HighLogic.CurrentGame;
-                if (game == null) { return null; }
-                if (!game.scenarios.Any(p => p.moduleName == typeof(DataManager).Name))
+                if (_current == null)
                 {
-                    ProtoScenarioModule scenario = game.AddProtoScenarioModule(typeof(DataManager), GameScenes.FLIGHT);
-                    if (scenario.targetScenes.Contains(HighLogic.LoadedScene)) { scenario.Load(ScenarioRunner.fetch); }
+                    //Borrowed from https://github.com/Majiir/Kethane/blob/master/Plugin/KethaneData.cs#L10-L28
+                    Game game = HighLogic.CurrentGame;
+                    if (game == null) { return null; }
+                    if (!game.scenarios.Any(p => p.moduleName == typeof(DataManager).Name))
+                    {
+                        ProtoScenarioModule scenario = game.AddProtoScenarioModule(typeof(DataManager), GameScenes.FLIGHT);
+                        if (scenario.targetScenes.Contains(HighLogic.LoadedScene)) { scenario.Load(ScenarioRunner.fetch); }
+                    }
+                    _current =  game.scenarios.Select(s => s.moduleRef).OfType<DataManager>().SingleOrDefault();
                 }
-                return game.scenarios.Select(s => s.moduleRef).OfType<DataManager>().SingleOrDefault();
+                return _current;
             }
         }
         #endregion
@@ -43,7 +48,7 @@ namespace KRES.Data
                 foreach (DataBody body in type.bodies)
                 {
                     ConfigNode b = t.AddNode(body.name);
-                    b.AddValue("currentError", body.currentError.ToString("0.00000"));
+                    b.AddValue("currentError", body.currentError);
                 }
             }
         }
@@ -80,7 +85,7 @@ namespace KRES.Data
                 foreach (CelestialBody body in KRESUtils.GetRelevantBodies(type))
                 {
                     ConfigNode b = t.AddNode(body.bodyName);
-                    b.AddValue("currentError", 1d);
+                    b.AddValue("currentError", 1);
                 }
             }
         }

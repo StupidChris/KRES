@@ -27,8 +27,8 @@ namespace KRES
         {
             get
             {
-                if (DataManager.Current == null) { return false; }
-                return DataManager.Current.data.Count > 0;
+                if (DataManager.current == null) { return false; }
+                return DataManager.current.data.Count > 0;
             }
         }
         #endregion
@@ -57,7 +57,7 @@ namespace KRES
             if (ResourceLoader.loaded)
             {
                 DebugWindow.instance.Print("Showing: " + resourceName);
-                GetCurrentBody().ResourceItems.Find(i => i.hasMap && i.name == resourceName).map.ShowTexture(GetCurrentBody().Name);
+                GetCurrentBody().resourceItems.Find(i => i.hasMap && i.name == resourceName).map.ShowTexture(GetCurrentBody().name);
             }
         }
 
@@ -69,7 +69,7 @@ namespace KRES
             if (ResourceLoader.loaded)
             {
                 DebugWindow.instance.Print("Hiding: " + resourceName);
-                GetCurrentBody().ResourceItems.Find(i => i.hasMap && i.name == resourceName).map.HideTexture(GetCurrentBody().Name);
+                GetCurrentBody().resourceItems.Find(i => i.hasMap && i.name == resourceName).map.HideTexture(GetCurrentBody().name);
             }
         }
 
@@ -83,9 +83,9 @@ namespace KRES
                 DebugWindow.instance.Print("Hiding: All Resources");
                 foreach (ResourceBody body in this._resourceBodies)
                 {
-                    foreach (ResourceItem item in body.ResourceItems.Where(i => i.hasMap))
+                    foreach (ResourceItem item in body.resourceItems.Where(i => i.hasMap))
                     {
-                        item.map.HideTexture(body.Name);
+                        item.map.HideTexture(body.name);
                     }
                 }
             }
@@ -116,7 +116,7 @@ namespace KRES
         /// <param name="name">Name of the body to find</param>
         public ResourceBody GetBody(string name)
         {
-            return resourceBodies.Find(b => b.Name == name);
+            return resourceBodies.Find(b => b.name == name);
         }
 
         /// <summary>
@@ -124,20 +124,17 @@ namespace KRES
         /// </summary>
         public ResourceBody GetCurrentBody()
         {
-            return resourceBodies.Find(b => b.Name == FlightGlobals.currentMainBody.bodyName);
+            return resourceBodies.Find(b => b.name == FlightGlobals.currentMainBody.bodyName);
         }
 
         /// <summary>
         /// Returns the DataBody associated to the current scanner
         /// </summary>
         /// <param name="scanner">Scanner module to get the body from</param>
-        public DataBody GetDataBody(ModuleKresScanner scanner)
+        public DataBody GetDataBody(ResourceType type, CelestialBody body)
         {
-            if (dataSet) { return DataManager.Current.data.Find(d => d.type == scanner.scannerType).GetBody(scanner.body.Name); }
-            else
-            {
-                return new DataType(scanner.type).GetBody(scanner.body.Name);
-            }
+            if (dataSet) { return DataManager.current.data.Find(d => d.type == type).GetBody(body.bodyName); }
+            else { return new DataType(type).GetBody(body.bodyName); }
         }
         #endregion
     }

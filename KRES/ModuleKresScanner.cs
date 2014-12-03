@@ -1,14 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using UnityEngine;
 using KRES.Extensions;
 using KRES.Data;
 
 namespace KRES
 {
-    public class ModuleKresScanner : PartModule
+    public class ModuleKresScanner : PartModule, IModuleInfo
     {
+        public class InputResource
+        {
+            #region Properties
+            private readonly string _name = string.Empty;
+            public string name
+            {
+                get { return this._name; }
+            }
+
+            private readonly double _rate = 0;
+            public double rate
+            {
+                get { return this._rate; }
+            }
+            #endregion
+
+            #region Constructor
+            public InputResource(ConfigNode node)
+            {
+                node.TryGetValue("name", ref this._name);
+                if (string.IsNullOrEmpty(this._name))
+                {
+                    DebugWindow.Log("Nameless scanner input resource, skipping");
+                    return;
+                }
+                if (!PartResourceLibrary.Instance.resourceDefinitions.Contains(this._name))
+                {
+                    DebugWindow.Log("Scanner could not find resource definition for " + this._name);
+                    this._name = string.Empty;
+                    return;
+                }
+                node.TryGetValue("rate", ref this._rate);
+                if (rate <= 0)
+                {
+                    DebugWindow.Log("Resource draining rate for " + this._name + " must be superior to zero");
+                    this._name = string.Empty;
+                    return;
+                }
+            }
+            #endregion
+        }
+
+        #region Constants
+        private const double delta = 0.005;
+        #endregion
+
         #region KSPFields
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = "Optimal alt"), UI_FloatRange(minValue = 100000f, maxValue = 2000000f, stepIncrement = 5000f)]
         public float optimalAltitude = 100000f;
@@ -24,47 +71,12 @@ namespace KRES
         public bool isTweakable = true;
         [KSPField]
         public string type = "ore";
-        #endregion
-
-        #region Misc KSPFields
         [KSPField(isPersistant = true)]
         public bool scanning = false;
         [KSPField(guiActive = true, guiName = "Status")]
         public string status = "Idle";
-        [KSPField(guiActive = true, guiFormat = "0.000", guiName = "Pressure")]
+        [KSPField(guiActive = false, guiFormat = "0.000", guiName = "Pressure")]
         public float pressure = 0f;
-        #endregion
-
-        #region Propreties
-        internal double ASL
-        {
-            get { return FlightGlobals.getAltitudeAtPos(this.vessel.findWorldCenterOfMass()); }
-        }
-
-        internal double AtmosphericPressure
-        {
-            get
-            {
-                double alt = FlightGlobals.getAltitudeAtPos(this.part.transform.position);
-                double pressure = FlightGlobals.getStaticPressure(alt, this.vessel.mainBody);
-                return pressure > 1E-6d ? pressure : 0d;
-            }
-        }
-
-        internal bool ResourceValid
-        {
-            get { return resource != string.Empty && PartResourceLibrary.Instance.resourceDefinitions.Contains(resource) && rate > 0f; }
-        }
-
-        private bool DataVisible
-        {
-            get { return (currentError - maxPrecision) / (1d - maxPrecision) <= 0.95d; }
-        }
-
-        private bool PercentageVisible
-        {
-            get { return (currentError - maxPrecision) / (1d - maxPrecision) <= 0.25d; }
-        }
         #endregion
 
         #region Fields
@@ -72,86 +84,126 @@ namespace KRES
         internal ResourceBody body = new ResourceBody();
         internal ResourceType scannerType = ResourceType.ORE;
         internal List<ResourceItem> items = new List<ResourceItem>();
+        public List<InputResource> resources = new List<InputResource>();
+        public ConfigNode node = null;
+        DataBody data = null;
         internal double currentError = 1d;
-        internal bool scannedFlag = false;
         internal IScanner scanner = null;
-        internal string resource = "ElectricCharge";
-        internal float rate = 10f;
+        private double a = 0, b = 0;
 
         //GUI
-        private int ID = Guid.NewGuid().GetHashCode();
+        private int id = Guid.NewGuid().GetHashCode();
         internal bool visible = false;
-        private Rect window = new Rect();
+        internal Rect window = new Rect();
         internal string location = string.Empty;
         internal string presence = string.Empty;
         private GUISkin skins = HighLogic.Skin;
         private Vector2 scroll = new Vector2();
         #endregion
 
+        #region Propreties
+        internal double ASL
+        {
+            get { return FlightGlobals.getAltitudeAtPos(this.part.transform.position); }
+        }
+
+        internal double atmosphericPressure
+        {
+            get
+            {
+                double pressure = FlightGlobals.getStaticPressure(ASL, this.vessel.mainBody);
+                return pressure > 1E-6 ? pressure : 0;
+            }
+        }
+
+        private bool dataVisible
+        {
+            get { return this.data.currentError <= 0.75; }
+        }
+
+        private bool percentageVisible
+        {
+            get { return this.data.currentError <= 0.5; }
+        }
+
+        private double scanFactor
+        {
+            get { return this.a * (this.currentError - this.b) * (double)TimeWarp.fixedDeltaTime; }
+        }
+        #endregion
+
         #region Part GUI
         [KSPEvent(guiName = "Start scanning", active = true, guiActive = true, externalToEVAOnly = false, guiActiveUnfocused = true, unfocusedRange = 5f)]
         public void GUIToggleScanning()
         {
-            ToggleScan();
+            if (this.scanning) { DeactivateScanner(false); }
+            else { ActivateScanner(); }
         }
 
         [KSPEvent(guiName = "Toggle window", active = true, guiActive = true)]
         public void GUIToggleWindow()
         {
-            List<ModuleKresScanner> modules = new List<ModuleKresScanner>(this.vessel.FindPartModulesImplementing<ModuleKresScanner>());
-            if (modules.Count > 1) { modules.Find(m => m.visible).visible = false; }
-            this.visible = !this.visible;
+            if (!this.visible)
+            {
+                List<ModuleKresScanner> scanners = new List<ModuleKresScanner>(this.vessel.FindPartModulesImplementing<ModuleKresScanner>().Where(m => m != this));
+                if (scanners.Any(m => m.visible))
+                {
+                    ModuleKresScanner scanner = scanners.Single(m => m.visible);
+                    scanner.visible = false;
+                    this.window.x = scanner.window.x;
+                    this.window.y = scanner.window.y;
+                }
+                this.visible = true;
+            }
+            else { this.visible = false; }
         }
         #endregion
 
         #region Functions
         private void Update()
         {
-            if (!HighLogic.LoadedSceneIsFlight || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.instance.dataSet) { return; }
-            if (this.body.Name != this.vessel.mainBody.bodyName)
+            if (!HighLogic.LoadedSceneIsFlight || this.resources.Count <= 0 || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.instance.dataSet) { return; }
+            if (this.body.name != this.vessel.mainBody.bodyName)
             {
                 LoadData();
-                this.scanning = false;
-                Events["GUIToggleScanning"].active = true;
             }
         }
 
         private void FixedUpdate()
         {
-            if (!HighLogic.LoadedSceneIsFlight || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.instance.dataSet) { return; }
-            if (this.items.Count > 0 && this.scanning && currentError > maxPrecision)
+            if (!HighLogic.LoadedSceneIsFlight || this.resources.Count <= 0 || FlightGlobals.currentMainBody == null || FlightGlobals.ActiveVessel == null || !this.vessel.loaded || !ResourceController.instance.dataSet) { return; }
+            
+            if (this.scanning)
             {
-                currentError -= this.scanner.Scan();
-                scannedFlag = false;
-                ResourceController.instance.GetDataBody(this).currentError = this.currentError;
-            }
-            else if (this.scanning && currentError <= maxPrecision)
-            {
-                currentError = maxPrecision;
-                ResourceController.instance.GetDataBody(this).currentError = this.currentError;
-                this.scanning = false;
-                Events["GUIToggleScanning"].active = false;
-                status = "Complete";
-                ScreenMessages.PostScreenMessage("Scanning complete, scanner turned off.", 5, ScreenMessageStyle.UPPER_CENTER);
-            }
-            else if (this.scanning && this.scannerType == ResourceType.GAS && AtmosphericPressure > 0 && items.Count <= 0)
-            {
-                this.scanning = false;
-                Events["GUIToggleScanning"].active = false;
-                status = "No resources";
-                currentError = -1d;
-                ScreenMessages.PostScreenMessage("No resources in the atmosphere", 5, ScreenMessageStyle.UPPER_CENTER);
-            }
-            else if (this.scanning && this.scannerType == ResourceType.LIQUID && this.vessel.Splashed && items.Count <= 0)
-            {
-                this.scanning = false;
-                Events["GUIToggleScanning"].active = false;
-                status = "No resources";
-                currentError = -1d;
-                ScreenMessages.PostScreenMessage("No resources in the ocean", 5, ScreenMessageStyle.UPPER_CENTER);
-            }
+                if (this.currentError > this.maxPrecision)
+                {
+                    double scan = Scan();
+                    if (scan != 0)
+                    {
+                        this.status = "Scanning...";
+                        this.currentError += scan;
+                        this.data.currentError = this.currentError;
+                    }
+                    else { this.status = "Not enough resources"; }
+                }
 
-            if (Fields["pressure"].guiActive) { this.pressure = (float)AtmosphericPressure; }
+                if (this.items.Count > 0 && this.currentError <= this.maxPrecision)
+                {
+                    this.currentError = this.maxPrecision;
+                    this.data.currentError = this.maxPrecision;
+                    DeactivateScanner(true);
+                    this.scanner.Complete();
+                }
+                else if (this.items.Count <= 0 && this.percentageVisible)
+                {
+                    DeactivateScanner(false);
+                    this.currentError = -1;
+                    this.data.currentError = -1;
+                    this.scanner.NoResources();
+                    return;
+                }
+            }
+            if (Fields["pressure"].guiActive) { this.pressure = (float)atmosphericPressure; }
         }
         #endregion
 
@@ -160,17 +212,6 @@ namespace KRES
         {
             if (!HighLogic.LoadedSceneIsEditor && !HighLogic.LoadedSceneIsFlight) { return; }
             LoadScanner();
-
-            if (!isTweakable || scannerType == ResourceType.LIQUID)
-            {
-                Fields["optimalAltitude"].guiActiveEditor = false;
-                Fields["optimalPressure"].guiActiveEditor = false;
-            }
-            else
-            {
-                Fields["optimalPressure"].guiActiveEditor = (scannerType == ResourceType.GAS);
-                Fields["optimalAltitude"].guiActiveEditor = (scannerType == ResourceType.ORE);
-            }
 
             if (HighLogic.LoadedSceneIsFlight)
             {
@@ -181,105 +222,209 @@ namespace KRES
 
         public override void OnLoad(ConfigNode node)
         {
-            if (node.HasNode("INPUT"))
+            if (this.node == null) { this.node = node; }
+
+            if (this.resources.Count == 0 && this.node.HasNode("INPUT"))
             {
-                ConfigNode input = node.GetNode("INPUT");
-                if (!input.TryGetValue("name", ref resource)) { return; }
-                input.TryGetValue("rate", ref rate);
+                this.resources = new List<InputResource>(this.node.GetNodes("INPUT").Select(n => new InputResource(n)).Where(r => !string.IsNullOrEmpty(r.name)));
             }
         }
 
         public override string GetInfo()
         {
-            string infoList = string.Empty;
+            StringBuilder builder = new StringBuilder();
             switch (this.type)
             {
-                case "ore": infoList = string.Format("Scanner type: {0}\n", "Orbital"); break;
-                case "gas": infoList = string.Format("Scanner type: {0}\n", "Atmospheric"); break;
-                case "liquid": infoList = string.Format("Scanner type: {0}\n", "Oceanic"); break;
-                default: return string.Empty;
+                case "ore":
+                    builder.AppendLine(String.Format("Orbital scanner")); break;
+
+                case "gas":
+                    builder.AppendLine(String.Format("Atmospheric scanner")); break;
+
+                case "liquid":
+                   builder.AppendLine(String.Format("Oceanic scanner")); break;
+
+                default:
+                    return string.Empty;
             }
 
-            infoList += String.Format("Minimal scanning period: {0}\n", KRESUtils.SecondsToTime(scanningSpeed));
-            infoList += String.Format("Minimum error margin: {0:0.00}%", maxPrecision * 100d);
+            builder.AppendLine(String.Format("Minimal scanning period: {0}", KRESUtils.SecondsToTime(scanningSpeed)));
+            builder.Append(String.Format("Minimum error margin: {0:0.00}%", maxPrecision * 100));
             if (type == "ore")
             {
-                infoList += String.Format("\nOptimal scanning altitude: {0}m\n", optimalAltitude);
-                infoList += String.Format("Scale altitude: {0:0.000}m", scaleFactor * optimalAltitude);
+                builder.AppendLine(String.Format("\nOptimal scanning altitude: {0}m", optimalAltitude));
+                builder.Append(String.Format("Scale altitude: {0:0.000}m", scaleFactor * optimalAltitude));
             }
             else if (type == "gas")
             {
-                infoList += String.Format("\nOptimal scanning pressure: {0}atm\n", optimalPressure);
-                infoList += String.Format("Scale pressure: {0:0.000}atm", scaleFactor * optimalPressure);
+                builder.AppendLine(String.Format("\nOptimal scanning pressure: {0}atm", optimalPressure));
+                builder.Append(String.Format("Scale pressure: {0:0.000}atm", scaleFactor * optimalPressure));
             }
 
-            if (ResourceValid)
+            if (this.resources.Count > 0)
             {
-                infoList += "\n\n<b><color=#99ff00ff>Input:</color></b>\n";
-                infoList += String.Format("Resource: {0}\n", resource);
-                infoList += String.Format("Rate: {0:0.0}/m", rate);
+                foreach (InputResource resource in this.resources)
+                {
+                    builder.AppendLine("\n\n<b><color=#99ff00ff>Input:</color></b>");
+                    builder.AppendLine(String.Format("Resource: {0}", resource.name));
+                    builder.Append(String.Format("Rate: {0:0.0}/m", resource.rate));
+                }
             }
 
-            return infoList;
+            return builder.ToString();
         }
         #endregion
 
         #region Methods
-        private void ToggleScan()
+        private void ActivateScanner()
         {
-            this.scanning = !this.scanning;
-            Events["GUIToggleScanning"].guiName = this.scanning ? "Stop scanning" : "Start scanning";
-            status = this.scanning ? "Scanning" : "Idle";
+            if (this.resources.Count == 0)
+            {
+                DebugWindow.Log("Cannot activate scanner that has no input resource");
+                return;
+            }
+            else if (!this.scanner.CanActivate()) { return; }
+
+            this.scanning = true;
+            Events["GUIToggleScanning"].guiName = "Stop scanning";
+            this.status = "Scanning...";
+        }
+
+        private void DeactivateScanner(bool complete)
+        {
+            this.scanning = false;
+            Events["GUIToggleScanning"].guiName = "Start scanning";
+            if (complete)
+            {
+                this.status = "Complete";
+                Events["GUIToggleScanning"].guiActive = false;
+            }
+            else { this.status = "Idle"; }
+        }
+
+        private void ToggleAllScanners()
+        {
+            GUIToggleScanning();
+            List<ModuleKresScanner> scanners = new List<ModuleKresScanner>(this.vessel.FindPartModulesImplementing<ModuleKresScanner>().Where(m => m != this && m.scannerType == this.scannerType));
+            if (scanners.Count > 0)
+            {
+                foreach (ModuleKresScanner scanner in scanners)
+                {
+                    if (this.scanning) { scanner.DeactivateScanner(false); }
+                    else { scanner.ActivateScanner(); }
+                }
+            }
         }
 
         private void LoadScanner()
         {
-            this.scannerType = KRESUtils.GetResourceType(this.type);
+            try
+            {
+                this.scannerType = KRESUtils.GetResourceType(this.type);
+            }
+            catch (Exception)
+            {
+                DebugWindow.Log(String.Format("Could not load scanner type correctly, must be \"ore\", \"gas\", or \"liquid\". {0} is an invalid type."));
+                return;
+            }
+
+            this.a = Math.Log(delta / (1 - (double)this.maxPrecision)) / (double)this.scanningSpeed;
+            this.b = (double)this.maxPrecision - delta;
+
             switch (this.scannerType)
             {
                 case ResourceType.ORE:
                     {
                         scanner = new OrbitalScanner(this);
-                        break;
+                        this.presence = " (surface%):";
+                        this.location = "Extractable";
+                        Fields["optimalAltitude"].guiActiveEditor = this.isTweakable;
+                        Fields["optimalPressure"].guiActiveEditor = false;
+                        return;
                     }
 
                 case ResourceType.GAS:
                     {
                         scanner = new AtmosphericScanner(this);
-                        break;
+                        this.presence = " (vol/vol):";
+                        this.location = "Atmospheric";
+                        Fields["pressure"].guiActive = true;
+                        Fields["optimalAltitude"].guiActiveEditor = false;
+                        Fields["optimalPressure"].guiActiveEditor = this.isTweakable;
+                        return;
                     }
 
                 case ResourceType.LIQUID:
                     {
                         scanner = new OceanicScanner(this);
-                        break;
+                        this.presence = " (vol/vol):";
+                        this.location = "Oceanic";
+                        Fields["optimalAltitude"].guiActiveEditor = false;
+                        Fields["optimalPressure"].guiActiveEditor = false;
+                        return;
                     }
 
                 default:
-                    break;
+                    return;
             }
         }
 
         private void LoadData()
         {
-            body = ResourceController.instance.GetCurrentBody();
-            print(body.Name);
-            items.Clear();
-            items.AddRange(body.GetItemsOfType(scannerType));
-            print(String.Join(", ", items.Select(i => i.name).ToArray()));
-            DataBody data = ResourceController.instance.GetDataBody(this);
-            print(data.name + " " + data.currentError);
-            this.currentError = data.currentError;
+            this.body = ResourceController.instance.GetBody(this.vessel.mainBody.bodyName);
+            this.items = body.GetItemsOfType(scannerType);
+            this.data = ResourceController.instance.GetDataBody(this.scannerType, this.vessel.mainBody);
+            this.currentError = this.data.currentError;
+            DeactivateScanner(false);
         }
 
         private string ItemPercentage(ResourceItem item)
         {
-            return (((currentError * item.actualError) + 1d) * item.actualDensity * 100d).ToString("0.00");
+            return (((data.currentError * item.actualError) + 1) * item.actualDensity * 100).ToString("0.00");
         }
 
         private string ItemError(ResourceItem item)
         {
-            return (item.actualDensity * currentError * 100d).ToString("0.00");
+            return (item.actualDensity * data.currentError * 100).ToString("0.00");
+        }
+
+        internal double Scan()
+        {
+            if (!CheatOptions.InfiniteFuel)
+            {
+                double[] amounts = new double[this.resources.Count];
+                for (int i = 0; i < this.resources.Count; i++)
+                {
+                    InputResource resource = this.resources[i];
+                    double amount = this.part.RequestResource(resource.name, resource.rate * TimeWarp.fixedDeltaTime);
+                    if (amount <= 0)
+                    {
+                        for (int j = 0; j < i; j++)
+                        {
+                            InputResource r = this.resources[j];
+                            this.part.RequestResource(r.name, -amounts[j]);
+                        }
+                        return 0;
+                    }
+                    else { amounts[i] = amount; }
+                }
+            }
+            return this.scanner.Scan() * this.scanFactor;
+        }
+
+        public Callback<Rect> GetDrawModulePanelCallback()
+        {
+            return null;
+        }
+
+        public string GetModuleTitle()
+        {
+            return "KRES Scanner";
+        }
+
+        public string GetPrimaryField()
+        {
+            return string.Empty;
         }
         #endregion
 
@@ -289,7 +434,7 @@ namespace KRES
             if (!HighLogic.LoadedSceneIsFlight) { return; }
             if (this.visible)
             {
-                this.window = GUILayout.Window(this.ID, this.window, Window, "KRES Scan Data", skins.window);
+                this.window = GUILayout.Window(this.id, this.window, Window, "KRES Scan Data", skins.window);
             }
         }
 
@@ -298,29 +443,36 @@ namespace KRES
             GUILayout.BeginVertical();
             GUILayout.Label(location + " resources:", KRESUtils.BoldLabel, GUILayout.Width(150));
             scroll = GUILayout.BeginScrollView(scroll, false, false, skins.horizontalScrollbar, skins.verticalScrollbar, skins.box);
-            if (DataVisible)
+            if (this.dataVisible)
             {
                 foreach (ResourceItem item in items)
                 {
                     GUILayout.BeginHorizontal();
                     GUILayout.Label(item.name + presence, KRESUtils.GetLabelOfColour(item.name), GUILayout.Width(120));
                     GUILayout.FlexibleSpace();
-                    GUILayout.Label(String.Format("{0} ± {1}%", PercentageVisible ? ItemPercentage(item) : "--", PercentageVisible ? ItemError(item) : "--"));
+                    GUILayout.Label(this.percentageVisible ? String.Format("{0} ± {1}%", ItemPercentage(item), ItemError(item)) : "-- ± --%");
                     GUILayout.EndHorizontal();
                 }
             }
             else
             {
                 if (this.scanning) { GUILayout.Label(status, skins.label); }
+                else if (this.currentError == -1) GUILayout.Label("No resources detected.", skins.label);
                 else { GUILayout.Label("Nothing to show.", skins.label); }
             }
             GUILayout.EndScrollView();
             GUILayout.BeginHorizontal();
             GUILayout.Label("Max error:", skins.label);
-            GUILayout.Label(String.Format("   ± {0}%", PercentageVisible ? (currentError * 100d).ToString("0.00") : "--"));
+            GUILayout.Label(this.percentageVisible ? String.Format("   ± {0}%", (this.data.currentError * 100d).ToString("0.00")) : "   ± --%");
             GUILayout.EndHorizontal();
-            if (currentError > maxPrecision) { if (GUILayout.Button((this.scanning ? "Stop" : "Start") + " scanning", skins.button)) { ToggleScan(); } }
-            if (GUILayout.Button("Close", skins.button)) { this.visible = false; }
+           if (GUILayout.Button((this.scanning ? "Stop" : "Start") + " scanning", skins.button))
+           {
+               GUIToggleScanning();
+           }
+           if (GUILayout.Button("Close", skins.button))
+           {
+                this.visible = false;
+           }
             GUILayout.EndVertical();
             GUI.DragWindow();
         }

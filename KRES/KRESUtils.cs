@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
+using System.Text;
 using UnityEngine;
 
 namespace KRES
@@ -373,7 +374,25 @@ namespace KRES
         public static string SecondsToTime(double seconds)
         {
             TimeSpan time = TimeSpan.FromSeconds(seconds);
-            return time.ToString();
+            StringBuilder builder = new StringBuilder();
+            if (time.Seconds > 0) { builder.Append(time.Seconds + "s"); }
+            if (time.Minutes > 0)
+            {
+                if (builder.Length > 0) { builder.Insert(0, ' '); }
+                builder.Insert(0, time.Minutes + "m");
+            }
+            if (time.Hours > 0)
+            {
+                if (builder.Length > 0) { builder.Insert(0, ' '); }
+                builder.Insert(0, time.Hours + "h");
+            }
+            if (time.Days > 0)
+            {
+                if (builder.Length > 0) { builder.Insert(0, ' '); }
+                builder.Insert(0, time.Days + "d");
+            }
+            if (builder.Length == 0) { builder.Append("0s"); }
+            return builder.ToString();
         }
 
         /// <summary>
@@ -435,13 +454,13 @@ namespace KRES
         }
 
         /// <summary>
-        /// Clamps a double value between 0 and 1, if the value is ut of the boundaries, it jumps back to 0 or 1
+        /// Clamps a double value between 0 and 1, if the value is out of the boundaries, it jumps back to 0 or 1
         /// </summary>
         /// <param name="value">Value to clamp</param>
         public static double Clamp01(double value)
         {
-            if (value > 1) { return -value + 2d; }
-            if (value < 0) { return -value; }
+            if (value > 1) { return 2 - value; }
+            else if (value < 0) { return -value; }
             return value;
         }
         #endregion

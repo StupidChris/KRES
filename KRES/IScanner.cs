@@ -7,58 +7,48 @@ namespace KRES
     public interface IScanner
     {
         double Scan();
-        double ScanAmount();
+        void Complete();
+        void NoResources();
+        bool CanActivate();
     }
 
     public class OrbitalScanner : IScanner
     {
         #region Fields
-        private ModuleKresScanner scanner = null;
+        private readonly ModuleKresScanner scanner;
         #endregion
 
         #region Constructor
         public OrbitalScanner(ModuleKresScanner scanner)
         {
             this.scanner = scanner;
-            this.scanner.presence = " (surface%):";
-            this.scanner.location = "Extractable";
         }
         #endregion
 
         #region Methods
         public double Scan()
         {
-            if (!this.scanner.scannedFlag)
-            {
-                double current = ScanAmount();
-                if (current > 0) { this.scanner.status = "Scanning..."; }
-                else { this.scanner.status = "Not enough " + this.scanner.resource; }
-                List<ModuleKresScanner> scanners = new List<ModuleKresScanner>(this.scanner.vessel.FindPartModulesImplementing<ModuleKresScanner>().Where(s => s != this.scanner && s.scannerType == this.scanner.scannerType));
-                double others = 0d;
-                if (scanners.Count > 0)
-                {
-                    others = scanners.Sum(m => m.scanner.ScanAmount());
-                    scanners.ForEach(m => m.currentError -= current + others);
-                }
-                return current + others;
-            }
-            return 0d;
+            return Math.Pow(2, -Math.Abs(this.scanner.ASL - this.scanner.optimalAltitude) / this.scanner.scaleFactor);
         }
 
-        public double ScanAmount()
+        public void Complete()
         {
-            if (!this.scanner.scannedFlag)
+            ScreenMessages.PostScreenMessage("Surface scan of " + this.scanner.body.name + " complete, scanner turned off.", 5, ScreenMessageStyle.UPPER_CENTER); ;
+        }
+
+        public void NoResources()
+        {
+            ScreenMessages.PostScreenMessage("No resources on " + this.scanner.body.name + "'s surface", 5, ScreenMessageStyle.UPPER_CENTER);
+        }
+
+        public bool CanActivate()
+        {
+            if (this.scanner.vessel.mainBody.pqsController == null)
             {
-                if (!this.scanner.ResourceValid || CheatOptions.InfiniteFuel || this.scanner.part.RequestResource(this.scanner.resource, this.scanner.rate * TimeWarp.fixedDeltaTime) > 0d)
-                {
-                    this.scanner.scannedFlag = true;
-                    double delta = Math.Abs(this.scanner.ASL - this.scanner.optimalAltitude);
-                    double altitudeFactor = Math.Pow(2d, -delta / (this.scanner.scaleFactor * this.scanner.optimalAltitude));
-                    double timeFactor = (1d / this.scanner.scanningSpeed) * TimeWarp.fixedDeltaTime;
-                    return timeFactor * altitudeFactor;
-                }
+                ScreenMessages.PostScreenMessage("No planetary surface to scan", 5, ScreenMessageStyle.UPPER_CENTER);
+                return false;
             }
-            return 0d;
+            return true;
         }
         #endregion
     }
@@ -66,57 +56,40 @@ namespace KRES
     public class AtmosphericScanner : IScanner
     {
         #region Fields
-        private ModuleKresScanner scanner = null;
+        private readonly ModuleKresScanner scanner;
         #endregion
 
         #region Constructor
         public AtmosphericScanner(ModuleKresScanner scanner)
         {
             this.scanner = scanner;
-            this.scanner.presence = " (vol/vol):";
-            this.scanner.location = "Atmospheric";
         }
         #endregion
 
         #region Methods
         public double Scan()
         {
-            if (!this.scanner.scannedFlag)
-            {
-                double current = ScanAmount();
-                if (current > 0) { this.scanner.status = "Scanning..."; }
-                else { this.scanner.status = "Not enough " + this.scanner.resource; }
-                List<ModuleKresScanner> scanners = new List<ModuleKresScanner>(this.scanner.vessel.FindPartModulesImplementing<ModuleKresScanner>().Where(s => s != this.scanner && s.scannerType == this.scanner.scannerType));
-                double others = 0d;
-                if (scanners.Count > 0)
-                {
-                    others = scanners.Sum(m => m.scanner.ScanAmount());
-                    scanners.ForEach(m => m.currentError -= current + others);
-                }
-                return current + others;
-            }
-            return 0d;
+            return Math.Pow(2, -Math.Abs(this.scanner.atmosphericPressure - this.scanner.optimalPressure) / this.scanner.scaleFactor);
         }
 
-        public double ScanAmount()
+        public void Complete()
         {
-            if (this.scanner.AtmosphericPressure <= 0d)
+            ScreenMessages.PostScreenMessage("Atmospheric scan of " + this.scanner.body.name + " complete, scanner turned off.", 5, ScreenMessageStyle.UPPER_CENTER);
+        }
+
+        public void NoResources()
+        {
+            ScreenMessages.PostScreenMessage("No resources in " + this.scanner.body.name + "'s atmosphere", 5, ScreenMessageStyle.UPPER_CENTER);
+        }
+
+        public bool CanActivate()
+        {
+            if (this.scanner.atmosphericPressure == 0)
             {
-                this.scanner.status = "No air";
-                return 0d;
+                ScreenMessages.PostScreenMessage("No atmosphere to scan", 5, ScreenMessageStyle.UPPER_CENTER);
+                return false;
             }
-            if (!this.scanner.scannedFlag)
-            {
-                if (!this.scanner.ResourceValid || CheatOptions.InfiniteFuel || this.scanner.part.RequestResource(this.scanner.resource, this.scanner.rate * TimeWarp.fixedDeltaTime) > 0d)
-                {
-                    this.scanner.scannedFlag = true;
-                    double delta = -Math.Abs(this.scanner.optimalPressure - this.scanner.AtmosphericPressure);
-                    double pressureFactor = Math.Pow(2d, delta / (this.scanner.scaleFactor * this.scanner.optimalPressure));
-                    double timeFactor = ((1d - this.scanner.maxPrecision) / this.scanner.scanningSpeed) * TimeWarp.fixedDeltaTime;
-                    return timeFactor * pressureFactor;
-                }
-            }
-            return 0d;
+            return true;
         }
         #endregion
     }
@@ -124,55 +97,40 @@ namespace KRES
     public class OceanicScanner : IScanner
     {
         #region Fields
-        private ModuleKresScanner scanner = null;
+        private readonly ModuleKresScanner scanner;
         #endregion
 
         #region Constructor
         public OceanicScanner(ModuleKresScanner scanner)
         {
             this.scanner = scanner;
-            this.scanner.presence = " (vol/vol):";
-            this.scanner.location = "Oceanic";
         }
         #endregion
 
         #region Methods
         public double Scan()
         {
-            if (!this.scanner.scannedFlag)
-            {
-                double current = ScanAmount();
-                if (current > 0) { this.scanner.status = "Scanning..."; }
-                else { this.scanner.status = "Not enough " + this.scanner.resource; }
-                List<ModuleKresScanner> scanners = new List<ModuleKresScanner>(this.scanner.vessel.FindPartModulesImplementing<ModuleKresScanner>().Where(s => s != this.scanner && s.scannerType == this.scanner.scannerType));
-                double others = 0d;
-                if (scanners.Count > 0)
-                {
-                    others = scanners.Sum(m => m.scanner.ScanAmount());
-                    scanners.ForEach(m => m.currentError -= current + others);
-                }
-                return current + others;
-            }
-            if (!this.scanner.vessel.Splashed) { this.scanner.status = "Not enough " + this.scanner.resource; }
-            return 0d;
+            return 1;
         }
 
-        public double ScanAmount()
+        public void Complete()
+        {
+            ScreenMessages.PostScreenMessage("Oceanic scan of " + this.scanner.body.name + " complete, scanner turned off.", 5, ScreenMessageStyle.UPPER_CENTER);
+        }
+
+        public void NoResources()
+        {
+            ScreenMessages.PostScreenMessage("No resources in " + this.scanner.body.name + "'s oceans", 5, ScreenMessageStyle.UPPER_CENTER);
+        }
+
+        public bool CanActivate()
         {
             if (!this.scanner.vessel.Splashed)
             {
-                this.scanner.status = "Not in water";
-                return 0d;
+                ScreenMessages.PostScreenMessage("No ocean to scan", 5, ScreenMessageStyle.UPPER_CENTER);
+                return false;
             }
-            if (!this.scanner.scannedFlag)
-            {
-                if (!this.scanner.ResourceValid || CheatOptions.InfiniteFuel || this.scanner.part.RequestResource(this.scanner.resource, this.scanner.rate * TimeWarp.fixedDeltaTime) > 0d)
-                {
-                    this.scanner.scannedFlag = true;
-                    return (1d / this.scanner.scanningSpeed) * TimeWarp.fixedDeltaTime;
-                }
-            }
-            return 0d;
+            return true;
         }
         #endregion
     }

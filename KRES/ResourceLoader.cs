@@ -53,16 +53,20 @@ namespace KRES
         private IEnumerator<YieldInstruction> LoadBodies()
         {
             ConfigNode settings = ConfigNode.Load(KRESUtils.dataURL);
-            double max = FlightGlobals.Bodies.Count;
-            double current = -1d;
+            List<CelestialBody> bodies = new List<CelestialBody>(FlightGlobals.Bodies.Where(b => b.pqsController != null || b.atmosphere || b.ocean));
+            double max = bodies.Count;
+            double current = -1;
             System.Random random = new System.Random();
-            foreach (CelestialBody planet in FlightGlobals.Bodies)
+            foreach (CelestialBody planet in bodies)
             {
                 current++;
-                _loadPercent = current / max;
                 ResourceBody body = new ResourceBody(planet.bodyName);
                 var b = body.LoadItems(settings.GetNode("KRES"), random);
-                while (b.MoveNext()) { yield return b.Current; }
+                while (b.MoveNext())
+                {
+                    _loadPercent = (current + body.bodyPercent) / max;
+                    yield return b.Current;
+                }
                 ResourceController.instance.resourceBodies.Add(body);
             }
             settings.Save(KRESUtils.dataURL);

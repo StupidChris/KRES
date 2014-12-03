@@ -14,8 +14,8 @@ namespace KRES.Data
             get { return this._name; }
         }
 
-        private string _type = string.Empty;
-        public string type
+        private ResourceType _type = ResourceType.ORE;
+        public ResourceType type
         {
             get { return this._type; }
         }
@@ -29,14 +29,14 @@ namespace KRES.Data
         #endregion
 
         #region Constructor
-        public DataBody(string body, string type)
+        public DataBody(string body, ResourceType type)
         {
             this._name = body;
             this._type = type;
-            _currentError = 1d;
+           this. _currentError = 1d;
         }
 
-        public DataBody(ConfigNode body, string type)
+        public DataBody(ConfigNode body, ResourceType type)
         {
             this._name = body.name;
             this._type = type;

@@ -89,7 +89,7 @@ namespace KRES
                 {
                     body = FlightGlobals.ActiveVessel.mainBody.bodyName;
                     Print("Body is now " + body);
-                    items = ResourceController.instance.resourceBodies.Find(b => b.Name == body).ResourceItems.Where(i => i.hasMap).ToArray();
+                    items = ResourceController.instance.resourceBodies.Find(b => b.name == body).resourceItems.Where(i => i.hasMap).ToArray();
                 }
             }
 
